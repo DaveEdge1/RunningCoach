@@ -2,7 +2,7 @@
 
 Training log and plan for the **Phoenix 10K, Dec 26, 2026**, built with Claude Code as a running coach.
 
-**Calendar:** https://daveedge1.github.io/RunningCoach/
+**Calendar:** https://daveedge1.github.io/RunningCoach/ · **Fitness:** https://daveedge1.github.io/RunningCoach/fitness.html
 
 - `training-plan.md` explains the plan and `plan.csv` has it day by day
 - `profile.md` holds HR thresholds, zones, races, and constraints

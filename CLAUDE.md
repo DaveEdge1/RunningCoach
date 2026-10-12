@@ -18,7 +18,7 @@ This folder is David's running log; Claude acts as his running coach.
 
 ## Publishing
 - GitHub repo DaveEdge1/RunningCoach (public), with Pages served from `docs/`.
-- `scripts/build_site.py` builds `docs/index.html` (the calendar) from `plan.csv` and `data/runs.csv`.
+- `scripts/build_site.py` builds `docs/index.html` (calendar) and, via `scripts/fitness_page.py`, `docs/fitness.html` (Fitness tab: mileage, training load, pace at AeT, zones, VDOT) from `plan.csv` and `data/runs.csv`.
 - `bash scripts/update.sh` runs the sync, analysis, and site build, then commits and pushes.
 - When the plan changes, update both `plan.csv` (which drives the calendar) and `training-plan.md`.
 - Never commit `.env`, FIT files, `data/coros_export/`, or `data/activities.json` (they hold the API key and GPS tracks). `.gitignore` covers them.

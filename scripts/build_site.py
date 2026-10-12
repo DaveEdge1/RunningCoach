@@ -212,7 +212,8 @@ def main():
     subs = {"RACE_DATE": RACE[0].isoformat(), "RACE_NAME": html.escape(RACE[1]),
             "RACE_LONG": f"{RACE[0]:%a %b} {RACE[0].day}, {RACE[0].year}",
             "LEGEND": legend, "ZLEG": zleg, "MONTHS": "".join(months), "WEEKS": "".join(weeks),
-            "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M} MST"}
+            "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M} MST",
+            "BASE_CSS": BASE_CSS, "TABS": tabs("index.html")}
     page = TEMPLATE
     for k, v in subs.items():
         page = page.replace(f"%%{k}%%", v)
@@ -221,19 +222,16 @@ def main():
     (ROOT / "docs" / ".nojekyll").touch()
     print(f"Wrote docs/index.html ({len(months)} months, {len(weeks)} weeks)")
 
+    import fitness_page
+    fitness_page.build(plan, built)
 
-TEMPLATE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Training Calendar</title>
-<style>
-:root {
+
+BASE_CSS = """:root {
   --bg: #f7f7f5; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e4e3df;
   --easy: #3b82c4; --long: #7a5cc4; --workout: #d9822b; --race: #d43d3d; --cross: #2a9d8f;
   --ok: #2e8b57; --miss: #b8b6ae; --today: #e0b100; --curwk: rgba(224, 177, 0, .16);
   --z1: #3a9d5d; --z2: #9cc43a; --z3: #f0c330; --z4: #ee8a2c; --z5: #d63c35;
+  --s1: #2a78d6; --s2: #eb6834; --s7: #4a3aa7; --fresh: #2a78d6; --neutral: #9b9a94; --tired: #e34948;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -241,6 +239,7 @@ TEMPLATE = """<!doctype html>
     --easy: #6aa9e0; --long: #a48be6; --workout: #f0a24f; --race: #f06b6b; --cross: #4cc2b3;
     --ok: #5cc48a; --miss: #5d5c56; --today: #d9b23a; --curwk: rgba(217, 178, 58, .18);
     --z1: #3fa862; --z2: #94bd3f; --z3: #e3b93a; --z4: #e2883a; --z5: #d4473f;
+    --s1: #3987e5; --s2: #d95926; --s7: #9085e9; --fresh: #3987e5; --neutral: #77766f; --tired: #e66767;
   }
 }
 * { box-sizing: border-box; }
@@ -254,7 +253,28 @@ header h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.01em; }
   font-size: 12px; margin-bottom: 8px; }
 .legend i, .zt i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px;
   vertical-align: -1px; }
-.bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 0;
+nav.tabs { display: flex; gap: 4px; margin: 0 0 14px; }
+nav.tabs a { padding: 6px 14px; border-radius: 6px; color: var(--muted); text-decoration: none;
+  border: 1px solid var(--line); background: var(--card); font-size: 13px; }
+nav.tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+"""
+
+
+def tabs(current):
+    links = [("index.html", "Calendar"), ("fitness.html", "Fitness")]
+    return '<nav class="tabs">' + "".join(
+        f'<a href="{h}"' + (' aria-current="page"' if h == current else "") + f">{t}</a>"
+        for h, t in links) + "</nav>"
+
+
+TEMPLATE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Training Calendar</title>
+<style>
+%%BASE_CSS%%.bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 0;
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 button { font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 0;
@@ -344,6 +364,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 <body>
 <main>
 <header>
+  %%TABS%%
   <h1>Training Calendar</h1>
   <p class="goal">Goal: <b>%%RACE_NAME%%</b> · %%RACE_LONG%% · <span id="countdown"></span></p>
   <div class="legend">%%LEGEND%%</div>
