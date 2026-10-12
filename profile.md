@@ -1,6 +1,7 @@
 # Athlete Profile
 
 ## Heart rate and thresholds (COROS upper-arm optical; thresholds are COROS app estimates)
+_The scripts read thresholds from `config.json`. Update both when they change._
 - Aerobic threshold (AeT): ~145 bpm
 - Lactate threshold (LT): 168 bpm, 7:43/mi (COROS estimate, updated after the 2026-10-10 10K; was 166)
 - Max HR: ~188 bpm

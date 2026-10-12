@@ -6,13 +6,22 @@ import csv, html, json, math
 from datetime import date, timedelta
 from pathlib import Path
 
-from build_site import BASE_CSS, ROOT, ZONE_COLS, tabs
+from analyze import EF_HR_BAND, EF_MAX_GRADE, EF_MIN_SECS
+from build_site import BASE_CSS, tabs
+from config import (AET, ALT_FLOOR_FT, ALT_PCT_PER_1000, GOAL_ELEV_FT, GOAL_METERS, GOAL_NAME, LT,
+                    MANUAL_LOAD_PER_MIN, ROOT, ZONE_NAMES as ZONE_COLS, ZONES, altitude_factor_range,
+                    zone_range)
 
 CTL_DAYS, ATL_DAYS = 42, 7
 TREND_DAYS = 28
 FRESH, TIRED = 5, -10  # form % thresholds
-ALTITUDE_GAIN = (0.03, 0.05)  # 7,000 ft -> ~1,100 ft, 10K: roughly 3-5% faster
 M_PER_MI = 1609.344
+DISTANCES = [(5000, "5K"), (10000, "10K"), (15000, "15K"), (21097.5, "Half marathon"), (42195, "Marathon")]
+
+
+def dist_label(meters):
+    m, name = min(DISTANCES, key=lambda x: abs(x[0] - meters))
+    return name if abs(m - meters) / m < 0.04 else f"{meters / M_PER_MI:.1f} mi"
 
 
 # ---------- Daniels VDOT ----------
@@ -137,7 +146,9 @@ def races(runs, plan):
         m, s = r["pace"].split(":")
         secs = (int(m) * 60 + int(s)) * float(r["miles"])
         meters = float(r["miles"]) * M_PER_MI
-        out.append({"d": d, "name": p["session"].split(":")[0], "meters": meters, "secs": secs,
+        kind = "race" if p["type"] == "race" else "time trial"
+        out.append({"d": d, "name": f"{dist_label(meters)} {kind}", "meters": meters, "secs": secs,
+                    "elev": int(r["elev_avg_ft"]) if r.get("elev_avg_ft") else None,
                     "vdot": vdot(meters, secs)})
     return out
 
@@ -156,6 +167,10 @@ def signed(x, fmt="{:.1f}", good_up=True):
     cls = "flat" if abs(x) < 1e-9 else ("up" if (x > 0) == good_up else "down")
     sign = "+" if x > 0 else "−" if x < 0 else "±"
     return f'<span class="{cls}">{sign}{fmt.format(abs(x))}</span>'
+
+
+def ft(x):
+    return f"{x:,} ft" if x is not None else ""
 
 
 def mmss(secs):
@@ -187,7 +202,7 @@ def build(plan, built):
         tile("Form", f"{now['form']:+.0f}".replace("-", "−"), f"{fp:+.0f}% · {form_word}".replace("-", "−")),
     ]
     if t_now:
-        tiles.append(tile("Pace at AeT (145 bpm)", f"{mmss(t_now)}/mi", "28-day trend, flat steady running",
+        tiles.append(tile(f"Pace at AeT ({AET} bpm)", f"{mmss(t_now)}/mi", "28-day trend, flat steady running",
                           (signed((t_now - t_ago) / 1, "{:.0f}", good_up=False) + " s/mi vs. 4 weeks ago") if t_ago else ""))
     best = rc[-1] if rc else None
     if best:
@@ -197,26 +212,32 @@ def build(plan, built):
     race_html = ""
     if best:
         v = best["vdot"]
-        p10 = predict(v, 10000)
-        p5 = predict(v, 5000)
+        elev = best["elev"]
+        at = f"at {elev:,} ft" if elev is not None else "at race elevation"
+        equiv = [(m, n) for m, n in DISTANCES[:3]]
+        pgoal = predict(v, GOAL_METERS)
         rows = "".join(f"<tr><td>{r['d']:%b} {r['d'].day}</td><td>{html.escape(r['name'])}</td>"
-                       f"<td>{r['meters'] / 1000:.2f} km</td><td>{hms(r['secs'])}</td><td>{r['vdot']:.1f}</td></tr>"
+                       f"<td>{r['meters'] / 1000:.2f} km</td><td>{hms(r['secs'])}</td>"
+                       f"<td>{ft(r['elev'])}</td><td>{r['vdot']:.1f}</td></tr>"
                        for r in reversed(rc))
-        lo, hi = p10 * (1 - ALTITUDE_GAIN[1]), p10 * (1 - ALTITUDE_GAIN[0])
+        goal_row = ""
+        if elev is not None:
+            flo, fhi = altitude_factor_range(elev, GOAL_ELEV_FT)
+            goal_row = (f"<tr><td>{html.escape(GOAL_NAME)} at {GOAL_ELEV_FT:,} ft (est.)</td>"
+                        f"<td>{hms(pgoal * flo)}–{hms(pgoal * fhi)}</td></tr>")
+        equiv_rows = "".join(f"<tr><td>{n} {at}</td><td>{hms(predict(v, m))}</td></tr>" for m, n in equiv)
         race_html = f"""
 <section class="card"><h2>Race fitness</h2>
-<p class="note">From your most recent race or time trial ({best['d']:%b} {best['d'].day}). Run at Flagstaff altitude, so these are altitude numbers.</p>
+<p class="note">From your most recent race or time trial: {html.escape(best['name'])}, {best['d']:%b} {best['d'].day}, {at}.</p>
 <div class="grid2">
 <div><h3>Equivalent times</h3><table class="t">
-<tr><td>5K (altitude)</td><td>{hms(p5)}</td></tr>
-<tr><td>10K (altitude)</td><td>{hms(p10)}</td></tr>
-<tr><td>10K in Phoenix (est.)</td><td>{hms(lo)}–{hms(hi)}</td></tr></table></div>
-<div><h3>Training paces (altitude)</h3><table class="t">
+{equiv_rows}{goal_row}</table></div>
+<div><h3>Training paces ({at})</h3><table class="t">
 <tr><td>Easy</td><td>{mmss(pace_at(v, 0.70))}–{mmss(pace_at(v, 0.62))}/mi</td></tr>
 <tr><td>Threshold</td><td>{mmss(pace_at(v, 0.88))}/mi</td></tr>
 <tr><td>Interval</td><td>{mmss(pace_at(v, 0.98))}/mi</td></tr></table></div>
 </div>
-<details><summary>Races and time trials</summary><table class="t full"><thead><tr><th>Date</th><th>Event</th><th>Distance</th><th>Time</th><th>VDOT</th></tr></thead><tbody>{rows}</tbody></table></details>
+<details><summary>Races and time trials</summary><table class="t full"><thead><tr><th>Date</th><th>Event</th><th>Distance</th><th>Time</th><th>Elevation</th><th>VDOT</th></tr></thead><tbody>{rows}</tbody></table></details>
 </section>"""
 
     wk_rows = "".join(
@@ -225,11 +246,23 @@ def build(plan, built):
         f"<td>{w['atl'] if w['atl'] is not None else ''}</td>" + "".join(f"<td>{z}%</td>" for z in w["z"]) + "</tr>"
         for w in reversed(weeks))
 
-    data = {"daily": daily, "weeks": weeks, "eff": pts, "trend": trend, "today": today.isoformat()}
+    data = {"daily": daily, "weeks": weeks, "eff": pts, "trend": trend, "today": today.isoformat(),
+            "aet": AET, "zones": [f"{n} {zone_range(lo, hi)}" for n, lo, hi in ZONES],
+            "breaks": [1, 3]}  # zone indexes below the LT1 (AeT) and LT2 (LT) boundaries
+    first = date.fromisoformat(daily[0]["d"])
+    alt_lo, alt_hi = ALT_PCT_PER_1000
+    about = f"""<p><b>Load</b> is HR-zone-weighted minutes: each minute in Z1 counts 1, Z2 counts 2, and so on up to Z5 = 5. Runs without real HR count {MANUAL_LOAD_PER_MIN:g} per minute.</p>
+<p><b>Fitness / fatigue</b> are exponentially weighted averages of daily load over {CTL_DAYS} and {ATL_DAYS} days. History begins {first:%b} {first.day}, {first.year}, so both start at the average load of the first four weeks.</p>
+<p><b>Form</b> measures training fatigue only. Sleep, stress, heat, and illness aren't included, so read single runs with that in mind.</p>
+<p><b>Pace at AeT</b> uses only seconds with HR {EF_HR_BAND[0]}–{EF_HR_BAND[1]} bpm, moving faster than walking, on grades under {EF_MAX_GRADE:.0%}, scaled to exactly {AET} bpm. A run needs at least {EF_MIN_SECS // 60} minutes of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days.</p>
+<p><b>Zones</b> come from config.json: LT1 (AeT) {AET} bpm and LT2 (LT) {LT} bpm. The intensity chart puts wider breaks at those two thresholds.</p>
+<p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race or time trial (any planned race, or a session named "time trial"). The goal-race estimate assumes altitude costs {alt_lo:g}–{alt_hi:g}% per 1,000 ft above {ALT_FLOOR_FT:,} ft, using the race's average elevation from its own file.</p>"""
     subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("fitness.html"), "TILES": "".join(tiles), "RACE": race_html,
             "WEEK_ROWS": wk_rows, "DATA": json.dumps(data, separators=(",", ":")),
-            "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M} MST",
-            "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−")}
+            "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
+            "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
+            "ZLEG": "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
+                    + '<span><span class="ln brk"></span>LT1 / LT2 break</span>'}
     page = TEMPLATE
     for k, v in subs.items():
         page = page.replace(f"%%{k}%%", v)
@@ -263,6 +296,8 @@ TEMPLATE = """<!doctype html>
 .grid line { stroke: var(--line); stroke-width: 1; }
 .axis text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .zero { stroke: var(--muted); stroke-width: 1; }
+.brk { stroke: var(--ink); stroke-width: 1.5; }
+.legend .ln.brk { background: var(--ink); }
 .guide { stroke: var(--muted); stroke-width: 1; }
 .lbl { fill: var(--ink); font-size: 11px; font-weight: 600; }
 .hit { fill: transparent; cursor: crosshair; }
@@ -311,16 +346,16 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <div class="legend"><span><span class="ln" style="background:var(--s1)"></span>Fitness (42-day)</span><span><span class="ln" style="background:var(--s2)"></span>Fatigue (7-day)</span></div>
 </section>
 
-<section class="card"><h2>Aerobic efficiency: pace at 145 bpm</h2>
+<section class="card"><h2>Aerobic efficiency: pace at %%AET%% bpm</h2>
 <p class="note">Estimated from steady, flat running near AeT. Faster is up. Dots are single runs, colored by form going into that day, so a slow dot on a tired day isn't a sign of lost fitness.</p>
 <div class="chart" id="cEff"></div>
 <div class="legend"><span><span class="ln" style="background:var(--s7)"></span>28-day trend</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span></div>
 </section>
 
 <section class="card"><h2>Intensity by week</h2>
-<p class="note">Share of time in each HR zone.</p>
+<p class="note">Share of time in each HR zone. Wider breaks mark LT1 (AeT) and LT2 (LT).</p>
 <div class="chart" id="cZones"></div>
-<div class="legend"><span><i class="z1"></i>Z1 Recovery</span><span><i class="z2"></i>Z2 Aerobic</span><span><i class="z3"></i>Z3 Tempo</span><span><i class="z4"></i>Z4 Threshold</span><span><i class="z5"></i>Z5 &gt;LT</span></div>
+<div class="legend">%%ZLEG%%</div>
 </section>
 
 %%RACE%%
@@ -330,11 +365,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <tbody>%%WEEK_ROWS%%</tbody></table></div></details></section>
 
 <section class="card about"><h2>How these are calculated</h2>
-<p><b>Load</b> is HR-zone-weighted minutes: each minute in Z1 counts 1, Z2 counts 2, and so on up to Z5 = 5. Runs without real HR count 2.5 per minute.</p>
-<p><b>Fitness / fatigue</b> are exponentially weighted averages of daily load over 42 and 7 days. History begins Aug 19, so both start at the average load of the first four weeks.</p>
-<p><b>Form</b> measures training fatigue only. Sleep, stress, heat, and illness aren't included, so read single runs with that in mind.</p>
-<p><b>Pace at AeT</b> uses only seconds with HR within 7 bpm of 145, moving faster than walking, on grades under 2%, scaled to exactly 145 bpm. A run needs at least 4 minutes of those seconds. The trend weights each run by how many seconds qualified.</p>
-<p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race or time trial. The Phoenix estimate assumes 3–5% faster at ~1,100 ft.</p>
+%%ABOUT%%
 </section>
 <footer>Updated %%BUILT%%.</footer>
 </main>
@@ -467,7 +498,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
       var hit = el("circle", { "class": "hit", cx: cx, cy: cy, r: 11 }, f.svg);
       hit.addEventListener("pointermove", function (ev) {
         c.setAttribute("r", 6);
-        showTip("<b>" + fmtDate(p.d) + "</b> · " + p.mi.toFixed(1) + " mi<br>" + mmss(p.p) + "/mi at 145 bpm<br>" +
+        showTip("<b>" + fmtDate(p.d) + "</b> · " + p.mi.toFixed(1) + " mi<br>" + mmss(p.p) + "/mi at " + D.aet + " bpm<br>" +
           Math.round(p.n / 60) + " min of steady flat running<br>" + sw("--" + p.cls) + "Form going in " + (p.formPct > 0 ? "+" : "") + p.formPct.toFixed(0) + "%", ev);
       });
       hit.addEventListener("pointerleave", function () { c.setAttribute("r", 4.5); hideTip(); });
@@ -493,24 +524,30 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     });
     var band = (W - m.l - m.r) / ws.length, bw = Math.min(24, band - 6);
     ws.forEach(function (w, i) {
-      var cx = m.l + band * (i + .5), acc = 0, top = 0;
+      var cx = m.l + band * (i + .5), acc = 0, top = 0, prev = -1;
       w.z.forEach(function (z, k) { if (z > 0) top = k; });
       w.z.forEach(function (z, k) {
         if (z <= 0) return;
-        var yb = Y(acc), yt = Y(acc + z) + (k < top ? 0 : 0);
-        var gap = acc > 0 ? 2 : 0;  // 2px surface gap between segments
-        var d = k === top ? colPath(cx - bw / 2, bw, yt, yb - gap) : "M" + (cx - bw / 2) + "," + (yb - gap) + "V" + yt + "H" + (cx + bw / 2) + "V" + (yb - gap) + "Z";
-        el("path", { d: d, "class": "z" + (k + 1) }, svg);
-        acc += z;
+        var yb = Y(acc), yt = Y(acc + z);
+        // 2px surface gap between segments; a wider gap and a rule where a threshold (LT1/LT2) is crossed
+        var isBreak = prev >= 0 && D.breaks.some(function (b) { return prev <= b && b < k; });
+        var gap = prev < 0 ? 0 : isBreak ? 6 : 2;
+        if (isBreak) el("line", { "class": "brk", x1: cx - bw / 2 - 5, x2: cx + bw / 2 + 5, y1: yb - gap / 2, y2: yb - gap / 2 }, svg);
+        if (yb - gap - yt >= 1) {
+          var d = k === top ? colPath(cx - bw / 2, bw, yt, yb - gap) : "M" + (cx - bw / 2) + "," + (yb - gap) + "V" + yt + "H" + (cx + bw / 2) + "V" + (yb - gap) + "Z";
+          el("path", { d: d, "class": "z" + (k + 1) }, svg);
+        }
+        acc += z; prev = k;
       });
       el("text", { x: cx, y: H - 6, "text-anchor": "middle" }, ax).textContent = fmtDate(w.w);
       var hl = el("rect", { "class": "hl", x: cx - band / 2, y: m.t, width: band, height: H - m.t - m.b, display: "none" }, svg);
       var hit = el("rect", { "class": "hit", x: cx - band / 2, y: m.t, width: band, height: H - m.t - m.b }, svg);
       hit.addEventListener("pointermove", function (ev) {
         hl.removeAttribute("display");
+        var b1 = D.breaks[0], b2 = D.breaks[1], sum = function (a, b) { return w.z.slice(a, b).reduce(function (s, x) { return s + x; }, 0); };
         showTip("<b>Week of " + fmtDate(w.w) + (w.partial ? " (so far)" : "") + "</b> · " + w.hrH + " h<br>" +
-          ["Z1 Recovery", "Z2 Aerobic", "Z3 Tempo", "Z4 Threshold", "Z5 >LT"].map(function (n, k) {
-            return sw("--z" + (k + 1)) + n + " " + w.z[k] + "%"; }).join("<br>"), ev);
+          "Below LT1 " + sum(0, b1 + 1) + "% · LT1–LT2 " + sum(b1 + 1, b2 + 1) + "% · Above LT2 " + sum(b2 + 1) + "%<br>" +
+          D.zones.map(function (n, k) { return sw("--z" + (k + 1)) + n + ": " + w.z[k] + "%"; }).join("<br>"), ev);
       });
       hit.addEventListener("pointerleave", function () { hl.setAttribute("display", "none"); hideTip(); });
     });

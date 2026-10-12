@@ -4,13 +4,9 @@ Usage: python scripts/build_site.py   (run scripts/analyze.py first)
 """
 import calendar, csv, html
 from collections import defaultdict
-from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
+from datetime import date, datetime, timedelta
 
-ROOT = Path(__file__).resolve().parent.parent
-RACE = (date(2026, 12, 26), "Phoenix 10K")
-PLAN_START = date(2026, 10, 12)  # Monday of plan week 1
-ZONE_COLS = ["Z1 Recovery", "Z2 Aerobic", "Z3 Tempo", "Z4 Threshold", "Z5 >LT"]
+from config import GOAL_DATE, GOAL_NAME, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, zone_range
 TYPES = {"easy": "Easy", "long": "Long", "workout": "Workout", "race": "Race",
          "cross": "Cross-train", "off": "Off"}
 
@@ -18,6 +14,14 @@ TYPES = {"easy": "Easy", "long": "Long", "workout": "Workout", "race": "Race",
 def load_plan():
     with open(ROOT / "plan.csv", encoding="utf-8") as f:
         return {date.fromisoformat(r["date"]): r for r in csv.DictReader(f)}
+
+
+def plan_start(plan):
+    """Monday of the first week with at least 3 planned days (one-off entries don't start the plan)."""
+    weeks = defaultdict(int)
+    for d in plan:
+        weeks[d - timedelta(d.weekday())] += 1
+    return min((w for w, n in weeks.items() if n >= 3), default=None)
 
 
 def secs(p):
@@ -179,13 +183,13 @@ def week_day(d, plan, act):
             f'<div class="wbody">{body}</div></div>')
 
 
-def week_html(wk0, plan, act):
+def week_html(wk0, plan, act, start):
     wk = [wk0 + timedelta(i) for i in range(7)]
     pm, am = week_totals(wk, plan, act)
     zones = [sum(act[d]["zones"][i] for d in wk if d in act) for i in range(len(ZONE_COLS))]
     hr_total = sum(act[d]["hr_secs"] for d in wk if d in act)
-    n = (wk0 - PLAN_START).days // 7 + 1
-    label = f"Plan week {n} · " if PLAN_START <= wk0 <= RACE[0] else ""
+    n = (wk0 - start).days // 7 + 1 if start else 0
+    label = f"Plan week {n} · " if start and start <= wk0 <= GOAL_DATE else ""
     end = wk[-1]
     zsum = f'<div class="zts">{zone_text(zones, hr_total)}</div>' if hr_total else ""
     head = (f'<div class="whead"><h2>{label}{wk0:%b} {wk0.day} – {end:%b} {end.day}</h2>'
@@ -203,16 +207,16 @@ def main():
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
     weeks, wk0 = [], first - timedelta(first.weekday())
     while wk0 <= last:
-        weeks.append(week_html(wk0, plan, act))
+        weeks.append(week_html(wk0, plan, act, plan_start(plan)))
         wk0 += timedelta(7)
 
-    built = datetime.now(timezone(timedelta(hours=-7)))
+    built = datetime.now(TZ)
     legend = "".join(f'<span class="tag t-{k}">{v}</span>' for k, v in TYPES.items() if k != "off")
-    zleg = "".join(f'<span><i class="z{i + 1}"></i>{c}</span>' for i, c in enumerate(ZONE_COLS))
-    subs = {"RACE_DATE": RACE[0].isoformat(), "RACE_NAME": html.escape(RACE[1]),
-            "RACE_LONG": f"{RACE[0]:%a %b} {RACE[0].day}, {RACE[0].year}",
+    zleg = "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
+    subs = {"RACE_DATE": GOAL_DATE.isoformat(), "RACE_NAME": html.escape(GOAL_NAME),
+            "RACE_LONG": f"{GOAL_DATE:%a %b} {GOAL_DATE.day}, {GOAL_DATE.year}",
             "LEGEND": legend, "ZLEG": zleg, "MONTHS": "".join(months), "WEEKS": "".join(weeks),
-            "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M} MST",
+            "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
             "BASE_CSS": BASE_CSS, "TABS": tabs("index.html")}
     page = TEMPLATE
     for k, v in subs.items():
@@ -378,7 +382,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 </div>
 <div id="monthly">%%MONTHS%%</div>
 <div id="weekly">%%WEEKS%%</div>
-<footer>Plan vs. completed runs (COROS). Click a week total to open that week. Updated %%BUILT%%.</footer>
+<footer>Plan vs. completed runs. Click a week total to open that week. Updated %%BUILT%%.</footer>
 </main>
 <script>
 (function () {

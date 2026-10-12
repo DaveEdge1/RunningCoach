@@ -1,0 +1,19 @@
+{
+  "timezone": "America/Phoenix",
+  "heart_rate": {
+    "aerobic_threshold": 145,
+    "lactate_threshold": 168,
+    "max": 188
+  },
+  "goal_race": {
+    "name": "Phoenix 10K",
+    "date": "2026-12-26",
+    "distance_km": 10,
+    "elevation_ft": 1100
+  },
+  "altitude": {
+    "no_effect_below_ft": 3000,
+    "slowdown_pct_per_1000ft": [0.7, 1.1]
+  },
+  "manual_run_load_per_min": 2.5
+}

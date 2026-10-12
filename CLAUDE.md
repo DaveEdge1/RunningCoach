@@ -8,7 +8,8 @@ This folder is David's running log; Claude acts as his running coach.
   (key in `.env`) into `data/activities.json` (raw) and `log.csv` (summary, miles / min per mi).
 - Run the sync at the start of any coaching conversation to get the latest runs.
 - `scripts/analyze.py` reads every FIT file in `data/fit/` (intervals.icu) and `data/coros_export/` (COROS bulk export zips, unzipped), de-duplicates by start time, and writes `data/laps.csv` and `data/runs.csv` plus rolling 7d/28d mileage. Some runs (e.g., 2026-09-20) never reached intervals.icu, so re-export from COROS if totals look low.
-- `profile.md`: goals, PRs, HR thresholds and zones, injury history. `notes.md`: subjective notes per run.
+- `config.json` holds every setting the scripts use: time zone, HR thresholds (AeT/LT/max), goal race (name, date, distance, elevation), altitude model, and load for manual runs. When a threshold or the goal race changes, edit config.json only. Zones, chart labels, method notes, and race estimates are all derived from it.
+- `profile.md`: narrative profile (goals, races, injury history). `notes.md`: subjective notes per run.
 
 ## Context
 - Lives in Flagstaff, AZ (~7,000 ft). Factor altitude into pace and HR interpretation.
@@ -22,3 +23,4 @@ This folder is David's running log; Claude acts as his running coach.
 - `bash scripts/update.sh` runs the sync, analysis, and site build, then commits and pushes.
 - When the plan changes, update both `plan.csv` (which drives the calendar) and `training-plan.md`.
 - Never commit `.env`, FIT files, `data/coros_export/`, or `data/activities.json` (they hold the API key and GPS tracks). `.gitignore` covers them.
+- Races and time trials for VDOT come from `plan.csv`: any row with type `race`, or a session that contains "time trial", on a day with a recorded run. Elevation comes from the run's FIT file.

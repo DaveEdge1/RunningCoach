@@ -7,26 +7,18 @@ Usage: python scripts/analyze.py   (run scripts/sync.py first)
 Writes data/laps.csv and data/runs.csv, prints rolling mileage.
 """
 import csv, warnings
-from datetime import date, timedelta, timezone
-from pathlib import Path
+from datetime import date, timedelta
 
 import fitdecode
 
+from config import AET, MANUAL_LOAD_PER_MIN, ROOT, TZ, ZONES
+
 warnings.filterwarnings("ignore", module="fitdecode")  # COROS files trip a harmless size warning
 
-ROOT = Path(__file__).resolve().parent.parent
 FIT_DIRS = [ROOT / "data" / "fit", ROOT / "data" / "coros_export"]
 MANUAL_LIST = ROOT / "data" / "manual_runs.txt"  # FIT ids of hand-made files (no real HR/GPS)
-LOCAL_TZ = timezone(timedelta(hours=-7))  # Arizona: MST year-round
 M_PER_MI = 1609.344
 FT_PER_M = 3.281
-
-# Keep in sync with profile.md
-AET, LT, MAX_HR = 145, 168, 188
-# 5 zones anchored to AeT/LT: Z2 tops out at AeT, Z4 is the 10 bpm below LT
-ZONES = [("Z1 Recovery", 0, AET - 10), ("Z2 Aerobic", AET - 10, AET),
-         ("Z3 Tempo", AET, LT - 10), ("Z4 Threshold", LT - 10, LT), ("Z5 >LT", LT, 999)]
-MANUAL_LOAD_PER_MIN = 2.5  # hand-made runs have no real HR; assume a Z2/Z3 easy effort
 
 # Aerobic efficiency: pace at AeT from steady, flat running in a narrow HR band around it
 EF_HR_BAND = (AET - 7, AET + 7)
@@ -103,13 +95,15 @@ def main():
     manual = {l.split("#")[0].strip() for l in MANUAL_LIST.read_text().splitlines()} - {""}
     for fid, s, laps, recs in load_runs():
         hr = [r[0] for r in recs if r[0]]
-        local = s["start"].astimezone(LOCAL_TZ)
+        alts = [r[3] for r in recs if r[3] is not None]
+        elev_avg = round(sum(alts) / len(alts) * FT_PER_M) if alts else ""
+        local = s["start"].astimezone(TZ)
         d = local.date()
         daily[d] = daily.get(d, 0) + s["dist"] / M_PER_MI
         if fid in manual:  # hand-made file: counts toward mileage, not HR/pace analysis
             run_rows.append([d, local.strftime("%H:%M"), f"{s['dist'] / M_PER_MI:.2f}",
                              pace(s["time"], s["dist"]), "", *[""] * (len(ZONES) + 3),
-                             round(s["time"] / 60 * MANUAL_LOAD_PER_MIN), "", "", fid + " (manual)"])
+                             round(s["time"] / 60 * MANUAL_LOAD_PER_MIN), "", "", "", fid + " (manual)"])
             continue
         for i, l in enumerate(laps, 1):
             lap_rows.append([d, local.strftime("%H:%M"), i, f"{l['dist'] / M_PER_MI:.2f}",
@@ -124,7 +118,7 @@ def main():
                          pace(s["time"], s["dist"]), round(sum(hr) / n) if hr else "", len(laps),
                          *[f"{z:.0f}" for z in zpct],
                          round(s["ascent"] * FT_PER_M), len(hr), round(run_load(zs)),
-                         *(lambda p, n: (round(p) if p else "", n))(*aet_pace(recs)), fid])
+                         *(lambda p, n: (round(p) if p else "", n))(*aet_pace(recs)), elev_avg, fid])
 
     with open(ROOT / "data" / "laps.csv", "w", newline="") as f:
         w = csv.writer(f)
@@ -134,7 +128,7 @@ def main():
     with open(ROOT / "data" / "runs.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["date", "start", "miles", "pace", "avg_hr", "laps", *[z[0] for z in ZONES],
-                    "elev_ft", "hr_secs", "load", "aet_pace_secs", "aet_secs", "fit"])
+                    "elev_ft", "hr_secs", "load", "aet_pace_secs", "aet_secs", "elev_avg_ft", "fit"])
         w.writerows(run_rows)
 
     total = sum(zone_secs) or 1
