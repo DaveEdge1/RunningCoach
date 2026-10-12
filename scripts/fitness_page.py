@@ -314,13 +314,17 @@ def build(plan, built):
                     on_track.append(predict(vdot(nr["meters"], back(t_equiv)), m_tt))
                     full.append(predict(vdot(nr["meters"], back(g)), m_tt))
                 tdays = (d_tt - today).days
-                panels.append(panel(f"Checkpoint: {html.escape(label)}", hms_range(min(on_track), max(on_track)),
-                                    [("Date", f"{d_tt:%a %b} {d_tt.day} · {tdays} days"),
-                                     ("Means", f"on track for {hms(g)}"),
-                                     ("Pace", f"{mmss_range(min(on_track) / (m_tt / M_PER_MI), max(on_track) / (m_tt / M_PER_MI))}/mi"),
-                                     ("Full goal fitness", hms_range(min(full), max(full)))],
-                                    f"At {HOME_NAME}. Assumes steady progress from current fitness "
-                                    f"({best['d']:%b} {best['d'].day}) to the goal on race day."))
+                tt_mi = m_tt / M_PER_MI
+                panels.append(panel(
+                    f"Checkpoint: {html.escape(label)}",
+                    f'{hms_range(min(on_track), max(on_track))} <span class="dim">on track</span>',
+                    [("Date", f"{d_tt:%a %b} {d_tt.day} · {tdays} days · at {HOME_NAME}"),
+                     ("On-track pace", f"{mmss_range(min(on_track) / tt_mi, max(on_track) / tt_mi)}/mi"),
+                     ("Goal-equivalent", f"{hms_range(min(full), max(full))} · "
+                                         f"{mmss_range(min(full) / tt_mi, max(full) / tt_mi)}/mi")],
+                    f"<b>On track</b>: steady progress from current fitness ({best['d']:%b} {best['d'].day}) to "
+                    f"{hms(g)} on race day; {d_tt:%b} {d_tt.day} is {frac:.0%} of the way. "
+                    f"<b>Goal-equivalent</b>: the {dist_label(m_tt)} you'd run at {HOME_NAME} if already at goal fitness."))
 
         next_html = (f'\n<section class="card next"><h2>Next race: {html.escape(nr["name"])}</h2>\n'
                      f'<div class="panels">{"".join(panels)}</div>\n{basis}\n</section>')
@@ -457,7 +461,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .z5 { background: var(--z5); fill: var(--z5); }
 .next .kv td:first-child { color: var(--muted); padding-right: 18px; } .next .kv td:last-child { text-align: left; }
 .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; margin-top: 8px; }
-.panel h3 { margin: 0 0 2px; } .panel .big { font-size: 24px; font-weight: 600; margin: 2px 0 4px; }
+.panel h3 { margin: 0 0 2px; } .panel .big { font-size: 24px; font-weight: 600; margin: 2px 0 4px; } .panel .big .dim { font-size: 13px; font-weight: 400; }
 .panel .kv td { padding: 2px 12px 2px 0; } .panel .note { margin: 6px 0 0; }
 .est { display: flex; gap: 28px; align-items: flex-start; } .est small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
 .next .note b { color: var(--ink); } .dim { color: var(--muted); font-size: 12px; }
