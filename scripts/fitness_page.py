@@ -8,9 +8,9 @@ from pathlib import Path
 
 from analyze import EF_HR_BAND, EF_MAX_GRADE, EF_MIN_SECS
 from build_site import BASE_CSS, tabs
-from config import (AET, ALT_FLOOR_FT, ALT_PCT_PER_1000, GOAL_ELEV_FT, GOAL_METERS, GOAL_NAME,
-                    HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, ROOT, ZONE_NAMES as ZONE_COLS,
-                    ZONES, altitude_factor_mid, altitude_factor_range, zone_range)
+from config import (AET, DANIELS_FLOOR_FT, DANIELS_SPM, HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, ROOT,
+                    ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race,
+                    zone_range)
 
 CTL_DAYS, ATL_DAYS = 42, 7
 TREND_DAYS = 28
@@ -137,18 +137,21 @@ def weekly(runs, daily):
 
 
 def races(runs, plan):
+    """Completed races (races.csv or plan type race) and time trials (plan session named so), with results."""
+    listed = {r["date"]: r for r in load_races()}
     out = []
     for r in runs:
         d = date.fromisoformat(r["date"])
-        p = plan.get(d)
-        if not p or not (p["type"] == "race" or "time trial" in p["session"].lower()):
+        p, rc = plan.get(d), listed.get(d)
+        is_race = rc is not None or (p is not None and p["type"] == "race")
+        if not (is_race or (p is not None and "time trial" in p["session"].lower())):
             continue
         m, s = r["pace"].split(":")
         secs = (int(m) * 60 + int(s)) * float(r["miles"])
         meters = float(r["miles"]) * M_PER_MI
-        kind = "race" if p["type"] == "race" else "time trial"
-        out.append({"d": d, "name": f"{dist_label(meters)} {kind}", "meters": meters, "secs": secs,
-                    "elev": int(r["elev_avg_ft"]) if r.get("elev_avg_ft") else None,
+        elev = int(r["elev_avg_ft"]) if r.get("elev_avg_ft") else (rc or {}).get("elev")
+        name = rc["name"] if rc else f"{dist_label(meters)} {'race' if is_race else 'time trial'}"
+        out.append({"d": d, "name": name, "meters": meters, "secs": secs, "elev": elev,
                     "vdot": vdot(meters, secs)})
     return out
 
@@ -175,6 +178,11 @@ def ft(x):
 
 def hms_range(lo, hi):
     a, b = hms(lo), hms(hi)
+    return a if a == b else f"{a}–{b}"
+
+
+def mmss_range(lo, hi):
+    a, b = mmss(lo), mmss(hi)
     return a if a == b else f"{a}–{b}"
 
 
@@ -210,55 +218,93 @@ def build(plan, built):
         tiles.append(tile(f"Pace at AeT ({AET} bpm)", f"{mmss(t_now)}/mi", "28-day trend, flat steady running",
                           (signed((t_now - t_ago) / 1, "{:.0f}", good_up=False) + " s/mi vs. 4 weeks ago") if t_ago else ""))
     best = rc[-1] if rc else None
-    if best:
-        sl = vdot(best["meters"], best["secs"] * altitude_factor_mid(best["elev"] if best["elev"] is not None else HOME_ELEV_FT, 0))
-        tiles.append(tile("VDOT", f"{best['vdot']:.1f}", f"{best['name']} {best['d']:%b} {best['d'].day} · {sl:.1f} at sea level"))
 
-    # race fitness block
+    def src_elev(r):  # no GPS altitude or races.csv elevation: assume home
+        return r["elev"] if r["elev"] is not None else HOME_ELEV_FT
+
+    def vdot_range(r, to_ft):  # result re-scored as if run at to_ft, across the altitude methods
+        lo, hi = convert_range(r["secs"], r["meters"], src_elev(r), to_ft)
+        return vdot(r["meters"], hi), vdot(r["meters"], lo)  # slower time -> lower VDOT
+
+    def vrange(lo, hi):
+        return f"{lo:.1f}" if f"{lo:.1f}" == f"{hi:.1f}" else f"{lo:.1f}–{hi:.1f}"
+
+    if best:
+        tiles.append(tile("VDOT", f"{best['vdot']:.1f}", f"{best['name']} {best['d']:%b} {best['d'].day} · "
+                          f"{vrange(*vdot_range(best, 0))} at sea level"))
+
+    spm = "–".join(f"{k:g}" for k in DANIELS_SPM)
+    methods_note = (f"Altitude is converted two published ways and shown as a range: Daniels "
+                    f"({spm} s/mi per 1,000 ft above {DANIELS_FLOOR_FT:,} ft) "
+                    f"and the NCAA altitude tables (% by altitude and distance).")
+
+    # next race
+    nr = next_race(today)
+    next_html = ""
+    if nr:
+        days = (nr["date"] - today).days
+        when = f"{nr['date']:%a %b} {nr['date'].day}, {nr['date'].year} · " + (f"{days} days" if days else "today")
+        mi = nr["meters"] / M_PER_MI
+        rows = [("Date", when), ("Location", html.escape(nr["location"]) or "—"),
+                ("Elevation", ft(nr["elev"]) or "—"),
+                ("Distance", f"{nr['meters'] / 1000:g} km ({mi:.2f} mi)"),
+                ("Course", html.escape(nr["notes"]) or "—")]
+        if best and nr["elev"] is not None:
+            t = predict(best["vdot"], nr["meters"])
+            by = convert_time(t, nr["meters"], src_elev(best), nr["elev"])
+            lo, hi = min(by.values()), max(by.values())
+            est = (f'<div class="est"><div><div class="tl">Estimated finish</div><div class="tv">{hms_range(lo, hi)}</div></div>'
+                   f'<div><div class="tl">Estimated pace</div><div class="tv">{mmss_range(lo / mi, hi / mi)}<small>/mi</small></div></div></div>')
+            age = (today - best["d"]).days
+            parts = " · ".join(f"{k}: {hms(v)}" for k, v in by.items())
+            basis = (f'<p class="note"><b>Current fitness</b> (no projected training gains): {html.escape(best["name"])} on '
+                     f'{best["d"]:%b} {best["d"].day} ({age} days ago), {hms(best["secs"])} at {ft(best["elev"]) or "unknown elevation"}, '
+                     f'VDOT {best["vdot"]:.1f}.</p>'
+                     f'<p class="note">Derived as: that result → VDOT → equivalent {dist_label(nr["meters"])} at {ft(src_elev(best))} '
+                     f'({hms(t)}) → converted to {ft(nr["elev"])}: {parts}.</p>')
+        else:
+            est = ""
+            reason = "this race has no elevation in races.csv" if best else "no completed race or time trial yet"
+            basis = f'<p class="note">No estimate: {reason}.</p>'
+        details = "".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in rows)
+        next_html = (f'\n<section class="card next"><h2>Next race: {html.escape(nr["name"])}</h2>\n'
+                     f'<div class="grid2"><table class="t kv">{details}</table>{est}</div>\n{basis}\n</section>')
+
     race_html = ""
     if best:
-        src = best["elev"] if best["elev"] is not None else HOME_ELEV_FT  # no GPS altitude: assume home
         places = [(f"{HOME_NAME} ({HOME_ELEV_FT:,} ft)", HOME_ELEV_FT), ("Sea level", 0)]
         dists = list(DISTANCES[:2])
-        if all(abs(m - GOAL_METERS) > 1 for m, _ in dists):
-            dists.append((GOAL_METERS, dist_label(GOAL_METERS)))
+        if nr and all(abs(m - nr["meters"]) > 1 for m, _ in dists):
+            dists.append((nr["meters"], dist_label(nr["meters"])))
 
         def at_elev(m, ft_):  # equivalent time range for distance m at elevation ft_
-            t = predict(best["vdot"], m)
-            lo, hi = altitude_factor_range(src, ft_)
-            return t * lo, t * hi
-
-        def vdot_at(ft_):  # race re-scored as if run at elevation ft_ (model midpoint)
-            return vdot(best["meters"], best["secs"] * altitude_factor_mid(src, ft_))
+            return convert_range(predict(best["vdot"], m), m, src_elev(best), ft_)
 
         head = "<tr><th></th>" + "".join(f"<th>{n}</th>" for n, _ in places) + "</tr>"
         time_rows = "".join(f"<tr><td>{n}</td>" + "".join(f"<td>{hms_range(*at_elev(m, e))}</td>" for _, e in places)
                             + "</tr>" for m, n in dists)
-        glo, ghi = at_elev(GOAL_METERS, GOAL_ELEV_FT)
-        goal_note = f"{html.escape(GOAL_NAME)} at {GOAL_ELEV_FT:,} ft: <b>{hms_range(glo, ghi)}</b> (est.)"
-        vs = [vdot_at(e) for _, e in places]
-        pace_rows = "".join(
-            f"<tr><td>{label}</td>" + "".join(f"<td>{fn(v)}</td>" for v in vs) + "</tr>"
-            for label, fn in [("Easy", lambda v: f"{mmss(pace_at(v, 0.70))}–{mmss(pace_at(v, 0.62))}"),
-                              ("Threshold", lambda v: mmss(pace_at(v, 0.88))),
-                              ("Interval", lambda v: mmss(pace_at(v, 0.98)))])
-        vdot_row = "<tr><td>VDOT</td>" + "".join(f"<td>{v:.1f}</td>" for v in vs) + "</tr>"
+        vs = [vdot_range(best, e) for _, e in places]  # (low, high) VDOT per place
+        pace_fns = [("Easy", lambda v: f"{mmss(pace_at(v[1], 0.70))}–{mmss(pace_at(v[0], 0.62))}"),
+                    ("Threshold", lambda v: mmss_range(pace_at(v[1], 0.88), pace_at(v[0], 0.88))),
+                    ("Interval", lambda v: mmss_range(pace_at(v[1], 0.98), pace_at(v[0], 0.98)))]
+        pace_rows = "".join(f"<tr><td>{label}</td>" + "".join(f"<td>{fn(v)}</td>" for v in vs) + "</tr>"
+                            for label, fn in pace_fns)
+        vdot_row = "<tr><td>VDOT</td>" + "".join(f"<td>{vrange(*v)}</td>" for v in vs) + "</tr>"
         rows = "".join(f"<tr><td>{r['d']:%b} {r['d'].day}</td><td>{html.escape(r['name'])}</td>"
                        f"<td>{r['meters'] / 1000:.2f} km</td><td>{hms(r['secs'])}</td>"
-                       f"<td>{ft(r['elev'])}</td><td>{r['vdot']:.1f}</td>"
-                       f"<td>{vdot(r['meters'], r['secs'] * altitude_factor_mid(r['elev'] if r['elev'] is not None else HOME_ELEV_FT, 0)):.1f}</td></tr>"
+                       f"<td>{ft(r['elev'])}</td><td>{r['vdot']:.1f}</td><td>{vrange(*vdot_range(r, 0))}</td></tr>"
                        for r in reversed(rc))
-        race_html = f"""
-<section class="card"><h2>Race fitness</h2>
-<p class="note">From your most recent race or time trial ({html.escape(best['name'])}, {best['d']:%b} {best['d'].day}, {ft(best['elev']) or 'elevation unknown'}),
-converted with the altitude model. Times show the model's range; paces use its midpoint.</p>
-<div class="grid2">
-<div><h3>Equivalent times</h3><table class="t full"><thead>{head}</thead><tbody>{time_rows}</tbody></table>
-<p class="note goalest">{goal_note}</p></div>
-<div><h3>Training paces (per mile)</h3><table class="t full"><thead>{head}</thead><tbody>{pace_rows}{vdot_row}</tbody></table></div>
-</div>
-<details><summary>Races and time trials</summary><div class="scroll"><table class="t full"><thead><tr><th>Date</th><th>Event</th><th>Distance</th><th>Time</th><th>Elevation</th><th>VDOT</th><th>VDOT (sea level)</th></tr></thead><tbody>{rows}</tbody></table></div></details>
-</section>"""
+        race_html = (
+            '\n<section class="card"><h2>Race fitness</h2>\n'
+            f'<p class="note">From your most recent race or time trial ({html.escape(best["name"])}, '
+            f'{best["d"]:%b} {best["d"].day}, {ft(best["elev"]) or "elevation unknown"}). {methods_note}</p>\n'
+            '<div class="grid2">\n'
+            f'<div><h3>Equivalent times</h3><table class="t full"><thead>{head}</thead><tbody>{time_rows}</tbody></table></div>\n'
+            f'<div><h3>Training paces (per mile)</h3><table class="t full"><thead>{head}</thead><tbody>{pace_rows}{vdot_row}</tbody></table></div>\n'
+            '</div>\n'
+            '<details><summary>Races and time trials</summary><div class="scroll"><table class="t full"><thead><tr><th>Date</th>'
+            '<th>Event</th><th>Distance</th><th>Time</th><th>Elevation</th><th>VDOT</th><th>VDOT (sea level)</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table></div></details>\n</section>')
 
     wk_rows = "".join(
         f"<tr><td>{date.fromisoformat(w['w']):%b} {date.fromisoformat(w['w']).day}{' (so far)' if w['partial'] else ''}</td>"
@@ -270,16 +316,30 @@ converted with the altitude model. Times show the model's range; paces use its m
             "aet": AET, "zones": [f"{n} {zone_range(lo, hi)}" for n, lo, hi in ZONES],
             "breaks": [1, 3]}  # zone indexes below the LT1 (AeT) and LT2 (LT) boundaries
     first = date.fromisoformat(daily[0]["d"])
-    alt_lo, alt_hi = ALT_PCT_PER_1000
-    about = f"""<p><b>Load</b> is HR-zone-weighted minutes: each minute in Z1 counts 1, Z2 counts 2, and so on up to Z5 = 5. Runs without real HR count {MANUAL_LOAD_PER_MIN:g} per minute.</p>
-<p><b>Fitness / fatigue</b> are exponentially weighted averages of daily load over {CTL_DAYS} and {ATL_DAYS} days. History begins {first:%b} {first.day}, {first.year}, so both start at the average load of the first four weeks.</p>
-<p><b>Form</b> measures training fatigue only. Sleep, stress, heat, and illness aren't included, so read single runs with that in mind.</p>
-<p><b>Pace at AeT</b> uses only seconds with HR {EF_HR_BAND[0]}–{EF_HR_BAND[1]} bpm, moving faster than walking, on grades under {EF_MAX_GRADE:.0%}, scaled to exactly {AET} bpm. A run needs at least {EF_MIN_SECS // 60} minutes of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days.</p>
-<p><b>Zones</b> come from config.json: LT1 (AeT) {AET} bpm and LT2 (LT) {LT} bpm. The intensity chart puts wider breaks at those two thresholds.</p>
-<p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race or time trial (any planned race, or a session named "time trial"). The goal-race estimate assumes altitude costs {alt_lo:g}–{alt_hi:g}% per 1,000 ft above {ALT_FLOOR_FT:,} ft, using the race's average elevation from its own file.</p>"""
+    about = (
+        f"<p><b>Load</b> is HR-zone-weighted minutes: each minute in Z1 counts 1, Z2 counts 2, and so on up to Z5 = 5. "
+        f"Runs without real HR count {MANUAL_LOAD_PER_MIN:g} per minute.</p>\n"
+        f"<p><b>Fitness / fatigue</b> are exponentially weighted averages of daily load over {CTL_DAYS} and {ATL_DAYS} days. "
+        f"History begins {first:%b} {first.day}, {first.year}, so both start at the average load of the first four weeks.</p>\n"
+        "<p><b>Form</b> measures training fatigue only. Sleep, stress, heat, and illness aren't included, "
+        "so read single runs with that in mind.</p>\n"
+        f"<p><b>Pace at AeT</b> uses only seconds with HR {EF_HR_BAND[0]}–{EF_HR_BAND[1]} bpm, moving faster than walking, "
+        f"on grades under {EF_MAX_GRADE:.0%}, scaled to exactly {AET} bpm. A run needs at least {EF_MIN_SECS // 60} minutes "
+        f"of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days.</p>\n"
+        f"<p><b>Zones</b> come from config.json: LT1 (AeT) {AET} bpm and LT2 (LT) {LT} bpm. "
+        "The intensity chart puts wider breaks at those two thresholds.</p>\n"
+        "<p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race (races.csv, or a planned race) or time trial "
+        "(a planned session named \"time trial\"). The next-race estimate uses that current fitness with no projected gains. "
+        "Elevation comes from the run's own file.</p>\n"
+        "<p><b>Altitude</b> is converted two published ways and shown as a range. "
+        '<a href="https://news.vdoto2.com/2011/03/ask-a-coach-how-do-you-adjust-threshold-pace-at-altitude/">Daniels</a>: '
+        f"paces slow {spm} s/mi per 1,000 ft above {DANIELS_FLOOR_FT:,} ft (15–18 s/mi at 7,000 ft). "
+        '<a href="https://www.ustfccca.org/assets/ncaa-info/2009-outdoor-alt-adjust.pdf">NCAA 2009 altitude tables</a>: '
+        "% added by venue altitude (0–7,703 ft) for the mile, 5K and 10K, interpolated by altitude and distance, and held at "
+        "the nearest of those distances outside that span. Neither accounts for acclimatization.</p>")
     subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("fitness.html"), "TILES": "".join(tiles), "RACE": race_html,
             "WEEK_ROWS": wk_rows, "DATA": json.dumps(data, separators=(",", ":")),
-            "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
+            "NEXT": next_html, "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
             "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
             "ZLEG": "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
                     + '<span><span class="ln brk"></span>LT1 / LT2 break</span>'}
@@ -340,7 +400,9 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .z1 { background: var(--z1); fill: var(--z1); } .z2 { background: var(--z2); fill: var(--z2); }
 .z3 { background: var(--z3); fill: var(--z3); } .z4 { background: var(--z4); fill: var(--z4); }
 .z5 { background: var(--z5); fill: var(--z5); }
-.goalest { margin-top: 8px; } .goalest b { color: var(--ink); }
+.next .kv td:first-child { color: var(--muted); padding-right: 18px; } .next .kv td:last-child { text-align: left; }
+.est { display: flex; gap: 28px; align-items: flex-start; } .est small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+.next .note b { color: var(--ink); }
 .about p { font-size: 13px; color: var(--muted); margin: 6px 0; }
 .about b { color: var(--ink); font-weight: 600; }
 @media (max-width: 760px) { .chart { height: 200px; } .tv { font-size: 22px; } }
@@ -354,6 +416,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   <p class="goal">Built from completed runs only.</p>
 </header>
 <div class="tiles">%%TILES%%</div>
+%%NEXT%%
 
 <section class="card"><h2>Weekly mileage</h2>
 <p class="note">Mon–Sun totals, with the 28-day rolling average (mi/wk).</p>

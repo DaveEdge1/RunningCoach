@@ -9,15 +9,13 @@
     "lactate_threshold": 168,
     "max": 188
   },
-  "goal_race": {
-    "name": "Phoenix 10K",
-    "date": "2026-12-26",
-    "distance_km": 10,
-    "elevation_ft": 1100
-  },
   "altitude": {
-    "no_effect_below_ft": 3000,
-    "slowdown_pct_per_1000ft": [0.7, 1.1]
+    "daniels_floor_ft": 3000,
+    "daniels_sec_per_mile_per_1000ft": [
+      4,
+      5
+    ],
+    "ncaa_table": "data/ref/ncaa_altitude_2009.csv"
   },
   "manual_run_load_per_min": 2.5
 }

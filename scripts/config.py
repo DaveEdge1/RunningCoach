@@ -1,8 +1,8 @@
 """Athlete settings from config.json, shared by every script.
 
-Edit config.json (not the scripts) when thresholds, the goal race, or the time zone change.
+Edit config.json (not the scripts) when thresholds, home, or the time zone change; races go in races.csv.
 """
-import json
+import csv, json, math
 from datetime import date
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -27,31 +27,73 @@ def zone_range(lo, hi):
     return f"<{hi}" if lo == 0 else f"{lo}+" if hi >= 999 else f"{lo}–{hi - 1}"
 
 
-GOAL = _cfg["goal_race"]
-GOAL_NAME = GOAL["name"]
-GOAL_DATE = date.fromisoformat(GOAL["date"])
-GOAL_METERS = GOAL["distance_km"] * 1000
-GOAL_ELEV_FT = GOAL["elevation_ft"]
 
-ALT_FLOOR_FT = _cfg["altitude"]["no_effect_below_ft"]
-ALT_PCT_PER_1000 = tuple(_cfg["altitude"]["slowdown_pct_per_1000ft"])
+
+def load_races():
+    """Race calendar from races.csv (past and upcoming), sorted by date."""
+    with open(ROOT / "races.csv", encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+    return sorted(({"date": date.fromisoformat(r["date"]), "name": r["name"], "location": r["location"],
+                    "meters": float(r["distance_km"]) * 1000,
+                    "elev": int(r["elevation_ft"]) if r["elevation_ft"] else None,
+                    "notes": r["course_notes"]} for r in rows), key=lambda r: r["date"])
+
+
+def next_race(today=None):
+    today = today or date.today()
+    return next((r for r in load_races() if r["date"] >= today), None)
 
 MANUAL_LOAD_PER_MIN = _cfg["manual_run_load_per_min"]
 
 
-def altitude_factor_range(from_ft, to_ft):
-    """Multipliers on race time when moving a performance from one elevation to another.
+# ---------- altitude: two published methods (see data/ref/README.md) ----------
 
-    Altitude is assumed to cost a fixed % per 1,000 ft above a floor; returns (low, high)
-    multipliers, which are < 1 when the target is lower.
-    """
-    def cost(ft, pct):
-        return max(0.0, ft - ALT_FLOOR_FT) / 1000 * pct / 100
-    lo, hi = ALT_PCT_PER_1000
-    return tuple(sorted(((1 + cost(to_ft, p)) / (1 + cost(from_ft, p)) for p in (lo, hi))))
+M_PER_MI = 1609.344
+DANIELS_FLOOR_FT = _cfg["altitude"]["daniels_floor_ft"]
+DANIELS_SPM = tuple(_cfg["altitude"]["daniels_sec_per_mile_per_1000ft"])
 
 
-def altitude_factor_mid(from_ft, to_ft):
-    """Single best-guess multiplier (midpoint of the model's range)."""
-    lo, hi = altitude_factor_range(from_ft, to_ft)
-    return (lo + hi) / 2
+def _load_ncaa():
+    with open(ROOT / _cfg["altitude"]["ncaa_table"], encoding="utf-8", newline="") as f:
+        rows = [(int(r["altitude_ft"]), [(M_PER_MI, float(r["pct_mile"])), (5000, float(r["pct_5000m"])),
+                                        (10000, float(r["pct_10000m"]))]) for r in csv.DictReader(f)]
+    return sorted(rows)
+
+
+_NCAA = _load_ncaa()
+
+
+def _interp(x, pts):
+    """Linear interpolation over sorted (x, y) points, clamped at both ends."""
+    if x <= pts[0][0]:
+        return pts[0][1]
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        if x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+    return pts[-1][1]
+
+
+def ncaa_pct(alt_ft, meters):
+    """% the NCAA table adds to a race time at alt_ft: interpolated by altitude (linear, incl. its
+    sea-level row) and by log-distance between mile, 5K and 10K, clamped outside that span."""
+    by_alt = [(a, _interp(math.log(meters), [(math.log(m), p) for m, p in dists])) for a, dists in _NCAA]
+    return _interp(alt_ft, by_alt)
+
+
+def daniels_spm(alt_ft, k):
+    """Seconds per mile slower than sea level: k s/mi per 1,000 ft above the floor."""
+    return k * max(0.0, alt_ft - DANIELS_FLOOR_FT) / 1000
+
+
+def convert_time(secs, meters, from_ft, to_ft):
+    """Equivalent time at to_ft for a performance at from_ft, by each method."""
+    mi = meters / M_PER_MI
+    out = {f"Daniels {k:g} s/mi": secs + (daniels_spm(to_ft, k) - daniels_spm(from_ft, k)) * mi
+           for k in DANIELS_SPM}
+    out["NCAA"] = secs / (1 + ncaa_pct(from_ft, meters) / 100) * (1 + ncaa_pct(to_ft, meters) / 100)
+    return out
+
+
+def convert_range(secs, meters, from_ft, to_ft):
+    v = convert_time(secs, meters, from_ft, to_ft).values()
+    return min(v), max(v)

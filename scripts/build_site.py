@@ -6,7 +6,7 @@ import calendar, csv, html
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from config import GOAL_DATE, GOAL_NAME, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, zone_range
+from config import ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, next_race, zone_range
 TYPES = {"easy": "Easy", "long": "Long", "workout": "Workout", "race": "Race",
          "cross": "Cross-train", "off": "Off"}
 
@@ -189,7 +189,7 @@ def week_html(wk0, plan, act, start):
     zones = [sum(act[d]["zones"][i] for d in wk if d in act) for i in range(len(ZONE_COLS))]
     hr_total = sum(act[d]["hr_secs"] for d in wk if d in act)
     n = (wk0 - start).days // 7 + 1 if start else 0
-    label = f"Plan week {n} · " if start and start <= wk0 <= GOAL_DATE else ""
+    label = f"Plan week {n} · " if start and start <= wk0 <= max(plan) else ""
     end = wk[-1]
     zsum = f'<div class="zts">{zone_text(zones, hr_total)}</div>' if hr_total else ""
     head = (f'<div class="whead"><h2>{label}{wk0:%b} {wk0.day} – {end:%b} {end.day}</h2>'
@@ -213,8 +213,10 @@ def main():
     built = datetime.now(TZ)
     legend = "".join(f'<span class="tag t-{k}">{v}</span>' for k, v in TYPES.items() if k != "off")
     zleg = "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
-    subs = {"RACE_DATE": GOAL_DATE.isoformat(), "RACE_NAME": html.escape(GOAL_NAME),
-            "RACE_LONG": f"{GOAL_DATE:%a %b} {GOAL_DATE.day}, {GOAL_DATE.year}",
+    nr = next_race()
+    goal = (f'Next race: <b>{html.escape(nr["name"])}</b> · {nr["date"]:%a %b} {nr["date"].day}, {nr["date"].year}'
+            ' · <span id="countdown"></span>') if nr else ""
+    subs = {"RACE_DATE": nr["date"].isoformat() if nr else "", "GOAL": goal,
             "LEGEND": legend, "ZLEG": zleg, "MONTHS": "".join(months), "WEEKS": "".join(weeks),
             "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
             "BASE_CSS": BASE_CSS, "TABS": tabs("index.html")}
@@ -370,7 +372,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 <header>
   %%TABS%%
   <h1>Training Calendar</h1>
-  <p class="goal">Goal: <b>%%RACE_NAME%%</b> · %%RACE_LONG%% · <span id="countdown"></span></p>
+  <p class="goal">%%GOAL%%</p>
   <div class="legend">%%LEGEND%%</div>
   <div class="legend">HR zones: %%ZLEG%%</div>
 </header>
@@ -398,8 +400,11 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
   });
   document.querySelectorAll('.week[data-week="' + curWeek + '"]').forEach(function (el) { el.classList.add("current"); });
 
-  var days = Math.round((new Date("%%RACE_DATE%%T00:00:00") - new Date(today + "T00:00:00")) / 864e5);
-  document.getElementById("countdown").textContent = days > 0 ? days + " days to go" : days === 0 ? "race day!" : "done";
+  var cd = document.getElementById("countdown");
+  if (cd) {
+    var days = Math.round((new Date("%%RACE_DATE%%T00:00:00") - new Date(today + "T00:00:00")) / 864e5);
+    cd.textContent = days > 0 ? days + " days to go" : days === 0 ? "race day!" : "done";
+  }
 
   var weeks = Array.prototype.slice.call(document.querySelectorAll(".wview"));
   var home = weeks.findIndex(function (w) { return w.dataset.week === curWeek; });
