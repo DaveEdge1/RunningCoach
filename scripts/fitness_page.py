@@ -2,7 +2,7 @@
 
 Built from data/runs.csv by scripts/build_site.py.
 """
-import csv, html, json, math
+import csv, html, json, math, re
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -181,6 +181,24 @@ def hms_range(lo, hi):
     return a if a == b else f"{a}–{b}"
 
 
+def panel(title, big, rows, note=""):
+    body = "".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in rows)
+    return (f'<div class="panel"><h3>{title}</h3>' + (f'<div class="big">{big}</div>' if big else "")
+            + f'<table class="t kv">{body}</table>' + (f'<p class="note">{note}</p>' if note else "") + "</div>")
+
+
+def next_time_trial(plan, today, before):
+    """(date, meters, label) of the next planned session named "time trial" before `before`, if its distance parses."""
+    for d in sorted(plan):
+        sess = plan[d]["session"]
+        if today <= d < before and "time trial" in sess.lower():
+            m = re.search(r"(\d+(?:\.\d+)?)\s*(km|k|mi|mile)\b", sess, re.I)
+            if m:
+                n, unit = float(m.group(1)), m.group(2).lower()
+                return d, n * (M_PER_MI if unit.startswith("mi") else 1000), sess
+    return None
+
+
 def mmss_range(lo, hi):
     a, b = mmss(lo), mmss(hi)
     return a if a == b else f"{a}–{b}"
@@ -245,46 +263,67 @@ def build(plan, built):
         days = (nr["date"] - today).days
         when = f"{nr['date']:%a %b} {nr['date'].day}, {nr['date'].year} · " + (f"{days} days" if days else "today")
         mi = nr["meters"] / M_PER_MI
-        rows = [("Date", when), ("Location", html.escape(nr["location"]) or "—"),
-                ("Elevation", ft(nr["elev"]) or "—"),
-                ("Distance", f"{nr['meters'] / 1000:g} km ({mi:.2f} mi)"),
-                ("Course", html.escape(nr["notes"]) or "—")]
+        facts = [("Date", when), ("Location", html.escape(nr["location"]) or "—"),
+                 ("Elevation", ft(nr["elev"]) or "—"),
+                 ("Distance", f"{nr['meters'] / 1000:g} km ({mi:.2f} mi)"),
+                 ("Course", html.escape(nr["notes"]) or "—")]
+        panels = [panel("Race", None, facts)]
+        cur = None
         if best and nr["elev"] is not None:
             t = predict(best["vdot"], nr["meters"])
             by = convert_time(t, nr["meters"], src_elev(best), nr["elev"])
-            lo, hi = min(by.values()), max(by.values())
-            est = (f'<div class="est"><div><div class="tl">Estimated finish</div><div class="tv">{hms_range(lo, hi)}</div></div>'
-                   f'<div><div class="tl">Estimated pace</div><div class="tv">{mmss_range(lo / mi, hi / mi)}<small>/mi</small></div></div></div>')
+            cur = (min(by.values()), max(by.values()))
+            panels.append(panel("Current fitness", hms_range(*cur),
+                                [("Pace", f"{mmss_range(cur[0] / mi, cur[1] / mi)}/mi"),
+                                 ("Basis", f"{html.escape(best['name'])}, {best['d']:%b} {best['d'].day}")]))
             age = (today - best["d"]).days
             parts = " · ".join(f"{k}: {hms(v)}" for k, v in by.items())
             basis = (f'<p class="note"><b>Current fitness</b> (no projected training gains): {html.escape(best["name"])} on '
                      f'{best["d"]:%b} {best["d"].day} ({age} days ago), {hms(best["secs"])} at {ft(best["elev"]) or "unknown elevation"}, '
-                     f'VDOT {best["vdot"]:.1f}.</p>'
-                     f'<p class="note">Derived as: that result → VDOT → equivalent {dist_label(nr["meters"])} at {ft(src_elev(best))} '
-                     f'({hms(t)}) → converted to {ft(nr["elev"])}: {parts}.</p>')
+                     f'VDOT {best["vdot"]:.1f}. Derived as: that result → VDOT → equivalent {dist_label(nr["meters"])} at '
+                     f'{ft(src_elev(best))} ({hms(t)}) → converted to {ft(nr["elev"])}: {parts}.</p>')
         else:
-            est = ""
             reason = "this race has no elevation in races.csv" if best else "no completed race or time trial yet"
             basis = f'<p class="note">No estimate: {reason}.</p>'
+
         g = nr["goal_secs"]
         if g:
-            derived = ' <span class="dim">(from goal pace)</span>', ' <span class="dim">(from goal time)</span>'
-            rows += [("Goal time", f"<b>{hms(g)}</b>" + (derived[0] if nr["goal_from"] == "pace" else "")),
-                     ("Goal pace", f"<b>{mmss(g / mi)}/mi</b>" + (derived[1] if nr["goal_from"] == "time" else ""))]
-            if est:
-                vs = ("within your current-fitness range" if lo <= g <= hi else
-                      f"{lo - g:.0f}–{hi - g:.0f} s faster than current fitness" if g < lo else
-                      f"{g - hi:.0f}–{g - lo:.0f} s slower than current fitness")
-                rows.append(("Goal vs. now", vs + f" · needs VDOT {vdot(nr['meters'], g):.1f} at {ft(nr['elev'])}"))
+            items = [("Pace", f"{mmss(g / mi)}/mi" + (' <span class="dim">(from goal time)</span>' if nr["goal_from"] == "time" else "")),
+                     ("Needs", f"VDOT {vdot(nr['meters'], g):.1f} at {ft(nr['elev']) or 'race elevation'}")]
+            if nr["goal_from"] == "pace":
+                items.insert(0, ("Time", f'{hms(g)} <span class="dim">(from goal pace)</span>'))
+            if cur:
+                lo, hi = cur
+                items.append(("Vs. now", "within current range" if lo <= g <= hi else
+                              f"{lo - g:.0f}–{hi - g:.0f} s faster" if g < lo else f"{g - hi:.0f}–{g - lo:.0f} s slower"))
             if nr["elev"] is not None:
                 hlo, hhi = convert_range(g, nr["meters"], nr["elev"], HOME_ELEV_FT)
-                v_lo, v_hi = vdot(nr["meters"], hhi), vdot(nr["meters"], hlo)
-                rows += [(f"Goal at {HOME_NAME}", f"{dist_label(nr['meters'])} {hms_range(hlo, hhi)} · "
-                                                 f"{mmss_range(hlo / mi, hhi / mi)}/mi"),
-                         (f"5K checkpoint at {HOME_NAME}", hms_range(predict(v_hi, 5000), predict(v_lo, 5000)))]
-        details = "".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in rows)
+                items.append((f"At {HOME_NAME}", f"{hms_range(hlo, hhi)} · {mmss_range(hlo / mi, hhi / mi)}/mi"))
+            panels.append(panel("Goal", hms(g), items))
+
+            tt = next_time_trial(plan, today, nr["date"])
+            if tt and cur and nr["elev"] is not None and best["d"] < tt[0]:
+                d_tt, m_tt, label = tt
+                frac = (d_tt - best["d"]).days / (nr["date"] - best["d"]).days
+                v_goal = vdot(nr["meters"], g)
+                on_track, full = [], []
+                for k, t_now in by.items():  # per altitude method, used the same way in both directions
+                    v_now = vdot(nr["meters"], t_now)
+                    t_equiv = predict(v_now + frac * (v_goal - v_now), nr["meters"])  # linear in VDOT
+                    back = lambda t: convert_time(t, nr["meters"], nr["elev"], HOME_ELEV_FT)[k]
+                    on_track.append(predict(vdot(nr["meters"], back(t_equiv)), m_tt))
+                    full.append(predict(vdot(nr["meters"], back(g)), m_tt))
+                tdays = (d_tt - today).days
+                panels.append(panel(f"Checkpoint: {html.escape(label)}", hms_range(min(on_track), max(on_track)),
+                                    [("Date", f"{d_tt:%a %b} {d_tt.day} · {tdays} days"),
+                                     ("Means", f"on track for {hms(g)}"),
+                                     ("Pace", f"{mmss_range(min(on_track) / (m_tt / M_PER_MI), max(on_track) / (m_tt / M_PER_MI))}/mi"),
+                                     ("Full goal fitness", hms_range(min(full), max(full)))],
+                                    f"At {HOME_NAME}. Assumes steady progress from current fitness "
+                                    f"({best['d']:%b} {best['d'].day}) to the goal on race day."))
+
         next_html = (f'\n<section class="card next"><h2>Next race: {html.escape(nr["name"])}</h2>\n'
-                     f'<div class="grid2"><table class="t kv">{details}</table>{est}</div>\n{basis}\n</section>')
+                     f'<div class="panels">{"".join(panels)}</div>\n{basis}\n</section>')
 
     race_html = ""
     if best:
@@ -417,6 +456,9 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .z3 { background: var(--z3); fill: var(--z3); } .z4 { background: var(--z4); fill: var(--z4); }
 .z5 { background: var(--z5); fill: var(--z5); }
 .next .kv td:first-child { color: var(--muted); padding-right: 18px; } .next .kv td:last-child { text-align: left; }
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; margin-top: 8px; }
+.panel h3 { margin: 0 0 2px; } .panel .big { font-size: 24px; font-weight: 600; margin: 2px 0 4px; }
+.panel .kv td { padding: 2px 12px 2px 0; } .panel .note { margin: 6px 0 0; }
 .est { display: flex; gap: 28px; align-items: flex-start; } .est small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
 .next .note b { color: var(--ink); } .dim { color: var(--muted); font-size: 12px; }
 .about p { font-size: 13px; color: var(--muted); margin: 6px 0; }

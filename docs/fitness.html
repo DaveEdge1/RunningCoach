@@ -80,6 +80,9 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .z3 { background: var(--z3); fill: var(--z3); } .z4 { background: var(--z4); fill: var(--z4); }
 .z5 { background: var(--z5); fill: var(--z5); }
 .next .kv td:first-child { color: var(--muted); padding-right: 18px; } .next .kv td:last-child { text-align: left; }
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; margin-top: 8px; }
+.panel h3 { margin: 0 0 2px; } .panel .big { font-size: 24px; font-weight: 600; margin: 2px 0 4px; }
+.panel .kv td { padding: 2px 12px 2px 0; } .panel .note { margin: 6px 0 0; }
 .est { display: flex; gap: 28px; align-items: flex-start; } .est small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
 .next .note b { color: var(--ink); } .dim { color: var(--muted); font-size: 12px; }
 .about p { font-size: 13px; color: var(--muted); margin: 6px 0; }
@@ -97,8 +100,8 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <div class="tiles"><div class="tile"><div class="tl">Last 7 days</div><div class="tv">23.0 mi</div></div><div class="tile"><div class="tl">28-day average</div><div class="tv">27.2 mi/wk</div></div><div class="tile"><div class="tl">Fitness</div><div class="tv">102</div><div class=td><span class="down">−2</span> vs. 4 weeks ago</div><div class=ts>42-day training load</div></div><div class="tile"><div class="tl">Form</div><div class="tv">+13</div><div class=ts>+10% · fresh</div></div><div class="tile"><div class="tl">Pace at AeT (145 bpm)</div><div class="tv">9:58/mi</div><div class=td><span class="up">−11</span> s/mi vs. 4 weeks ago</div><div class=ts>28-day trend, flat steady running</div></div><div class="tile"><div class="tl">VDOT</div><div class="tv">42.0</div><div class=ts>10K Oct 10 · 44.0–45.1 at sea level</div></div></div>
 
 <section class="card next"><h2>Next race: Phoenix 10K</h2>
-<div class="grid2"><table class="t kv"><tr><td>Date</td><td>Sat Dec 26, 2026 · 75 days</td></tr><tr><td>Location</td><td>Phoenix, AZ</td></tr><tr><td>Elevation</td><td>1,100 ft</td></tr><tr><td>Distance</td><td>10 km (6.21 mi)</td></tr><tr><td>Course</td><td>—</td></tr><tr><td>Goal time</td><td><b>44:00</b></td></tr><tr><td>Goal pace</td><td><b>7:05/mi</b> <span class="dim">(from goal time)</span></td></tr><tr><td>Goal vs. now</td><td>84–128 s faster than current fitness · needs VDOT 46.5 at 1,100 ft</td></tr><tr><td>Goal at Flagstaff</td><td>10K 45:39–46:15 · 7:21–7:27/mi</td></tr><tr><td>5K checkpoint at Flagstaff</td><td>22:01–22:18</td></tr></table><div class="est"><div><div class="tl">Estimated finish</div><div class="tv">45:24–46:08</div></div><div><div class="tl">Estimated pace</div><div class="tv">7:18–7:26<small>/mi</small></div></div></div></div>
-<p class="note"><b>Current fitness</b> (no projected training gains): 10K on Oct 10 (2 days ago), 47:55 at 7,373 ft, VDOT 42.0.</p><p class="note">Derived as: that result → VDOT → equivalent 10K at 7,373 ft (47:57) → converted to 1,100 ft: Daniels 4 s/mi: 46:08 · Daniels 5 s/mi: 45:41 · NCAA: 45:24.</p>
+<div class="panels"><div class="panel"><h3>Race</h3><table class="t kv"><tr><td>Date</td><td>Sat Dec 26, 2026 · 75 days</td></tr><tr><td>Location</td><td>Phoenix, AZ</td></tr><tr><td>Elevation</td><td>1,100 ft</td></tr><tr><td>Distance</td><td>10 km (6.21 mi)</td></tr><tr><td>Course</td><td>—</td></tr></table></div><div class="panel"><h3>Current fitness</h3><div class="big">45:24–46:08</div><table class="t kv"><tr><td>Pace</td><td>7:18–7:26/mi</td></tr><tr><td>Basis</td><td>10K, Oct 10</td></tr></table></div><div class="panel"><h3>Goal</h3><div class="big">44:00</div><table class="t kv"><tr><td>Pace</td><td>7:05/mi <span class="dim">(from goal time)</span></td></tr><tr><td>Needs</td><td>VDOT 46.5 at 1,100 ft</td></tr><tr><td>Vs. now</td><td>84–128 s faster</td></tr><tr><td>At Flagstaff</td><td>45:39–46:15 · 7:21–7:27/mi</td></tr></table></div><div class="panel"><h3>Checkpoint: 5K time trial</h3><div class="big">22:43–22:47</div><table class="t kv"><tr><td>Date</td><td>Tue Nov 3 · 22 days</td></tr><tr><td>Means</td><td>on track for 44:00</td></tr><tr><td>Pace</td><td>7:19–7:20/mi</td></tr><tr><td>Full goal fitness</td><td>22:01–22:18</td></tr></table><p class="note">At Flagstaff. Assumes steady progress from current fitness (Oct 10) to the goal on race day.</p></div></div>
+<p class="note"><b>Current fitness</b> (no projected training gains): 10K on Oct 10 (2 days ago), 47:55 at 7,373 ft, VDOT 42.0. Derived as: that result → VDOT → equivalent 10K at 7,373 ft (47:57) → converted to 1,100 ft: Daniels 4 s/mi: 46:08 · Daniels 5 s/mi: 45:41 · NCAA: 45:24.</p>
 </section>
 
 <section class="card"><h2>Weekly mileage</h2>
@@ -148,7 +151,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race (races.csv, or a planned race) or time trial (a planned session named "time trial"). The next-race estimate uses that current fitness with no projected gains. Elevation comes from the run's own file.</p>
 <p><b>Altitude</b> is converted two published ways and shown as a range. <a href="https://news.vdoto2.com/2011/03/ask-a-coach-how-do-you-adjust-threshold-pace-at-altitude/">Daniels</a>: paces slow 4–5 s/mi per 1,000 ft above 3,000 ft (15–18 s/mi at 7,000 ft). <a href="https://www.ustfccca.org/assets/ncaa-info/2009-outdoor-alt-adjust.pdf">NCAA 2009 altitude tables</a>: % added by venue altitude (0–7,703 ft) for the mile, 5K and 10K, interpolated by altitude and distance, and held at the nearest of those distances outside that span. Neither accounts for acclimatization.</p>
 </section>
-<footer>Updated Oct 12, 2026 10:59 MST.</footer>
+<footer>Updated Oct 12, 2026 11:04 MST.</footer>
 </main>
 <div id="tip"></div>
 <script>
