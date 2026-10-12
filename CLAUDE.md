@@ -8,7 +8,7 @@ This folder is David's running log; Claude acts as his running coach.
   (key in `.env`) into `data/activities.json` (raw) and `log.csv` (summary, miles / min per mi).
 - Run the sync at the start of any coaching conversation to get the latest runs.
 - `scripts/analyze.py` reads every FIT file in `data/fit/` (intervals.icu) and `data/coros_export/` (COROS bulk export zips, unzipped), de-duplicates by start time, and writes `data/laps.csv` and `data/runs.csv` plus rolling 7d/28d mileage. Some runs (e.g., 2026-09-20) never reached intervals.icu, so re-export from COROS if totals look low.
-- `config.json` holds every setting the scripts use: time zone, HR thresholds (AeT/LT/max), goal race (name, date, distance, elevation), altitude model, and load for manual runs. When a threshold or the goal race changes, edit config.json only. Zones, chart labels, method notes, and race estimates are all derived from it.
+- `config.json` holds every setting the scripts use: time zone, home (name, elevation), HR thresholds (AeT/LT/max), goal race (name, date, distance, elevation), altitude model, and load for manual runs. When a threshold or the goal race changes, edit config.json only. Zones, chart labels, method notes, and race estimates are all derived from it.
 - `profile.md`: narrative profile (goals, races, injury history). `notes.md`: subjective notes per run.
 
 ## Context

@@ -1,5 +1,9 @@
 {
   "timezone": "America/Phoenix",
+  "home": {
+    "name": "Flagstaff",
+    "elevation_ft": 7000
+  },
   "heart_rate": {
     "aerobic_threshold": 145,
     "lactate_threshold": 168,

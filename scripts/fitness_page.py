@@ -8,9 +8,9 @@ from pathlib import Path
 
 from analyze import EF_HR_BAND, EF_MAX_GRADE, EF_MIN_SECS
 from build_site import BASE_CSS, tabs
-from config import (AET, ALT_FLOOR_FT, ALT_PCT_PER_1000, GOAL_ELEV_FT, GOAL_METERS, GOAL_NAME, LT,
-                    MANUAL_LOAD_PER_MIN, ROOT, ZONE_NAMES as ZONE_COLS, ZONES, altitude_factor_range,
-                    zone_range)
+from config import (AET, ALT_FLOOR_FT, ALT_PCT_PER_1000, GOAL_ELEV_FT, GOAL_METERS, GOAL_NAME,
+                    HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, ROOT, ZONE_NAMES as ZONE_COLS,
+                    ZONES, altitude_factor_mid, altitude_factor_range, zone_range)
 
 CTL_DAYS, ATL_DAYS = 42, 7
 TREND_DAYS = 28
@@ -173,6 +173,11 @@ def ft(x):
     return f"{x:,} ft" if x is not None else ""
 
 
+def hms_range(lo, hi):
+    a, b = hms(lo), hms(hi)
+    return a if a == b else f"{a}–{b}"
+
+
 def mmss(secs):
     secs = round(secs)
     return f"{secs // 60}:{secs % 60:02d}"
@@ -206,38 +211,53 @@ def build(plan, built):
                           (signed((t_now - t_ago) / 1, "{:.0f}", good_up=False) + " s/mi vs. 4 weeks ago") if t_ago else ""))
     best = rc[-1] if rc else None
     if best:
-        tiles.append(tile("VDOT", f"{best['vdot']:.1f}", f"{best['name']} {best['d']:%b} {best['d'].day}"))
+        sl = vdot(best["meters"], best["secs"] * altitude_factor_mid(best["elev"] if best["elev"] is not None else HOME_ELEV_FT, 0))
+        tiles.append(tile("VDOT", f"{best['vdot']:.1f}", f"{best['name']} {best['d']:%b} {best['d'].day} · {sl:.1f} at sea level"))
 
     # race fitness block
     race_html = ""
     if best:
-        v = best["vdot"]
-        elev = best["elev"]
-        at = f"at {elev:,} ft" if elev is not None else "at race elevation"
-        equiv = [(m, n) for m, n in DISTANCES[:3]]
-        pgoal = predict(v, GOAL_METERS)
+        src = best["elev"] if best["elev"] is not None else HOME_ELEV_FT  # no GPS altitude: assume home
+        places = [(f"{HOME_NAME} ({HOME_ELEV_FT:,} ft)", HOME_ELEV_FT), ("Sea level", 0)]
+        dists = list(DISTANCES[:2])
+        if all(abs(m - GOAL_METERS) > 1 for m, _ in dists):
+            dists.append((GOAL_METERS, dist_label(GOAL_METERS)))
+
+        def at_elev(m, ft_):  # equivalent time range for distance m at elevation ft_
+            t = predict(best["vdot"], m)
+            lo, hi = altitude_factor_range(src, ft_)
+            return t * lo, t * hi
+
+        def vdot_at(ft_):  # race re-scored as if run at elevation ft_ (model midpoint)
+            return vdot(best["meters"], best["secs"] * altitude_factor_mid(src, ft_))
+
+        head = "<tr><th></th>" + "".join(f"<th>{n}</th>" for n, _ in places) + "</tr>"
+        time_rows = "".join(f"<tr><td>{n}</td>" + "".join(f"<td>{hms_range(*at_elev(m, e))}</td>" for _, e in places)
+                            + "</tr>" for m, n in dists)
+        glo, ghi = at_elev(GOAL_METERS, GOAL_ELEV_FT)
+        goal_note = f"{html.escape(GOAL_NAME)} at {GOAL_ELEV_FT:,} ft: <b>{hms_range(glo, ghi)}</b> (est.)"
+        vs = [vdot_at(e) for _, e in places]
+        pace_rows = "".join(
+            f"<tr><td>{label}</td>" + "".join(f"<td>{fn(v)}</td>" for v in vs) + "</tr>"
+            for label, fn in [("Easy", lambda v: f"{mmss(pace_at(v, 0.70))}–{mmss(pace_at(v, 0.62))}"),
+                              ("Threshold", lambda v: mmss(pace_at(v, 0.88))),
+                              ("Interval", lambda v: mmss(pace_at(v, 0.98)))])
+        vdot_row = "<tr><td>VDOT</td>" + "".join(f"<td>{v:.1f}</td>" for v in vs) + "</tr>"
         rows = "".join(f"<tr><td>{r['d']:%b} {r['d'].day}</td><td>{html.escape(r['name'])}</td>"
                        f"<td>{r['meters'] / 1000:.2f} km</td><td>{hms(r['secs'])}</td>"
-                       f"<td>{ft(r['elev'])}</td><td>{r['vdot']:.1f}</td></tr>"
+                       f"<td>{ft(r['elev'])}</td><td>{r['vdot']:.1f}</td>"
+                       f"<td>{vdot(r['meters'], r['secs'] * altitude_factor_mid(r['elev'] if r['elev'] is not None else HOME_ELEV_FT, 0)):.1f}</td></tr>"
                        for r in reversed(rc))
-        goal_row = ""
-        if elev is not None:
-            flo, fhi = altitude_factor_range(elev, GOAL_ELEV_FT)
-            goal_row = (f"<tr><td>{html.escape(GOAL_NAME)} at {GOAL_ELEV_FT:,} ft (est.)</td>"
-                        f"<td>{hms(pgoal * flo)}–{hms(pgoal * fhi)}</td></tr>")
-        equiv_rows = "".join(f"<tr><td>{n} {at}</td><td>{hms(predict(v, m))}</td></tr>" for m, n in equiv)
         race_html = f"""
 <section class="card"><h2>Race fitness</h2>
-<p class="note">From your most recent race or time trial: {html.escape(best['name'])}, {best['d']:%b} {best['d'].day}, {at}.</p>
+<p class="note">From your most recent race or time trial ({html.escape(best['name'])}, {best['d']:%b} {best['d'].day}, {ft(best['elev']) or 'elevation unknown'}),
+converted with the altitude model. Times show the model's range; paces use its midpoint.</p>
 <div class="grid2">
-<div><h3>Equivalent times</h3><table class="t">
-{equiv_rows}{goal_row}</table></div>
-<div><h3>Training paces ({at})</h3><table class="t">
-<tr><td>Easy</td><td>{mmss(pace_at(v, 0.70))}–{mmss(pace_at(v, 0.62))}/mi</td></tr>
-<tr><td>Threshold</td><td>{mmss(pace_at(v, 0.88))}/mi</td></tr>
-<tr><td>Interval</td><td>{mmss(pace_at(v, 0.98))}/mi</td></tr></table></div>
+<div><h3>Equivalent times</h3><table class="t full"><thead>{head}</thead><tbody>{time_rows}</tbody></table>
+<p class="note goalest">{goal_note}</p></div>
+<div><h3>Training paces (per mile)</h3><table class="t full"><thead>{head}</thead><tbody>{pace_rows}{vdot_row}</tbody></table></div>
 </div>
-<details><summary>Races and time trials</summary><table class="t full"><thead><tr><th>Date</th><th>Event</th><th>Distance</th><th>Time</th><th>Elevation</th><th>VDOT</th></tr></thead><tbody>{rows}</tbody></table></details>
+<details><summary>Races and time trials</summary><div class="scroll"><table class="t full"><thead><tr><th>Date</th><th>Event</th><th>Distance</th><th>Time</th><th>Elevation</th><th>VDOT</th><th>VDOT (sea level)</th></tr></thead><tbody>{rows}</tbody></table></div></details>
 </section>"""
 
     wk_rows = "".join(
@@ -320,6 +340,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .z1 { background: var(--z1); fill: var(--z1); } .z2 { background: var(--z2); fill: var(--z2); }
 .z3 { background: var(--z3); fill: var(--z3); } .z4 { background: var(--z4); fill: var(--z4); }
 .z5 { background: var(--z5); fill: var(--z5); }
+.goalest { margin-top: 8px; } .goalest b { color: var(--ink); }
 .about p { font-size: 13px; color: var(--muted); margin: 6px 0; }
 .about b { color: var(--ink); font-weight: 600; }
 @media (max-width: 760px) { .chart { height: 200px; } .tv { font-size: 22px; } }

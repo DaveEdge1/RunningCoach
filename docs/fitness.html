@@ -79,6 +79,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .z1 { background: var(--z1); fill: var(--z1); } .z2 { background: var(--z2); fill: var(--z2); }
 .z3 { background: var(--z3); fill: var(--z3); } .z4 { background: var(--z4); fill: var(--z4); }
 .z5 { background: var(--z5); fill: var(--z5); }
+.goalest { margin-top: 8px; } .goalest b { color: var(--ink); }
 .about p { font-size: 13px; color: var(--muted); margin: 6px 0; }
 .about b { color: var(--ink); font-weight: 600; }
 @media (max-width: 760px) { .chart { height: 200px; } .tv { font-size: 22px; } }
@@ -91,7 +92,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   <h1>Running Fitness</h1>
   <p class="goal">Built from completed runs only.</p>
 </header>
-<div class="tiles"><div class="tile"><div class="tl">Last 7 days</div><div class="tv">23.0 mi</div></div><div class="tile"><div class="tl">28-day average</div><div class="tv">27.2 mi/wk</div></div><div class="tile"><div class="tl">Fitness</div><div class="tv">102</div><div class=td><span class="down">−2</span> vs. 4 weeks ago</div><div class=ts>42-day training load</div></div><div class="tile"><div class="tl">Form</div><div class="tv">+13</div><div class=ts>+10% · fresh</div></div><div class="tile"><div class="tl">Pace at AeT (145 bpm)</div><div class="tv">9:58/mi</div><div class=td><span class="up">−11</span> s/mi vs. 4 weeks ago</div><div class=ts>28-day trend, flat steady running</div></div><div class="tile"><div class="tl">VDOT</div><div class="tv">42.0</div><div class=ts>10K race Oct 10</div></div></div>
+<div class="tiles"><div class="tile"><div class="tl">Last 7 days</div><div class="tv">23.0 mi</div></div><div class="tile"><div class="tl">28-day average</div><div class="tv">27.2 mi/wk</div></div><div class="tile"><div class="tl">Fitness</div><div class="tv">102</div><div class=td><span class="down">−2</span> vs. 4 weeks ago</div><div class=ts>42-day training load</div></div><div class="tile"><div class="tl">Form</div><div class="tv">+13</div><div class=ts>+10% · fresh</div></div><div class="tile"><div class="tl">Pace at AeT (145 bpm)</div><div class="tv">9:58/mi</div><div class=td><span class="up">−11</span> s/mi vs. 4 weeks ago</div><div class=ts>28-day trend, flat steady running</div></div><div class="tile"><div class="tl">VDOT</div><div class="tv">42.0</div><div class=ts>10K race Oct 10 · 44.0 at sea level</div></div></div>
 
 <section class="card"><h2>Weekly mileage</h2>
 <p class="note">Mon–Sun totals, with the 28-day rolling average (mi/wk).</p>
@@ -119,16 +120,14 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 
 
 <section class="card"><h2>Race fitness</h2>
-<p class="note">From your most recent race or time trial: 10K race, Oct 10, at 7,373 ft.</p>
+<p class="note">From your most recent race or time trial (10K race, Oct 10, 7,373 ft),
+converted with the altitude model. Times show the model's range; paces use its midpoint.</p>
 <div class="grid2">
-<div><h3>Equivalent times</h3><table class="t">
-<tr><td>5K at 7,373 ft</td><td>23:07</td></tr><tr><td>10K at 7,373 ft</td><td>47:57</td></tr><tr><td>15K at 7,373 ft</td><td>1:13:50</td></tr><tr><td>Phoenix 10K at 1,100 ft (est.)</td><td>45:45–46:32</td></tr></table></div>
-<div><h3>Training paces (at 7,373 ft)</h3><table class="t">
-<tr><td>Easy</td><td>9:28–10:25/mi</td></tr>
-<tr><td>Threshold</td><td>7:53/mi</td></tr>
-<tr><td>Interval</td><td>7:13/mi</td></tr></table></div>
+<div><h3>Equivalent times</h3><table class="t full"><thead><tr><th></th><th>Flagstaff (7,000 ft)</th><th>Sea level</th></tr></thead><tbody><tr><td>5K</td><td>23:02–23:03</td><td>22:03–22:26</td></tr><tr><td>10K</td><td>47:46–47:50</td><td>45:45–46:32</td></tr></tbody></table>
+<p class="note goalest">Phoenix 10K at 1,100 ft: <b>45:45–46:32</b> (est.)</p></div>
+<div><h3>Training paces (per mile)</h3><table class="t full"><thead><tr><th></th><th>Flagstaff (7,000 ft)</th><th>Sea level</th></tr></thead><tbody><tr><td>Easy</td><td>9:26–10:23</td><td>9:08–10:03</td></tr><tr><td>Threshold</td><td>7:51</td><td>7:36</td></tr><tr><td>Interval</td><td>7:12</td><td>6:58</td></tr><tr><td>VDOT</td><td>42.2</td><td>44.0</td></tr></tbody></table></div>
 </div>
-<details><summary>Races and time trials</summary><table class="t full"><thead><tr><th>Date</th><th>Event</th><th>Distance</th><th>Time</th><th>Elevation</th><th>VDOT</th></tr></thead><tbody><tr><td>Oct 10</td><td>10K race</td><td>9.99 km</td><td>47:55</td><td>7,373 ft</td><td>42.0</td></tr></tbody></table></details>
+<details><summary>Races and time trials</summary><div class="scroll"><table class="t full"><thead><tr><th>Date</th><th>Event</th><th>Distance</th><th>Time</th><th>Elevation</th><th>VDOT</th><th>VDOT (sea level)</th></tr></thead><tbody><tr><td>Oct 10</td><td>10K race</td><td>9.99 km</td><td>47:55</td><td>7,373 ft</td><td>42.0</td><td>44.0</td></tr></tbody></table></div></details>
 </section>
 
 <section class="card"><details><summary>Weekly data table</summary><div class="scroll"><table class="t full">
@@ -143,7 +142,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <p><b>Zones</b> come from config.json: LT1 (AeT) 145 bpm and LT2 (LT) 168 bpm. The intensity chart puts wider breaks at those two thresholds.</p>
 <p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race or time trial (any planned race, or a session named "time trial"). The goal-race estimate assumes altitude costs 0.7–1.1% per 1,000 ft above 3,000 ft, using the race's average elevation from its own file.</p>
 </section>
-<footer>Updated Oct 12, 2026 10:17 MST.</footer>
+<footer>Updated Oct 12, 2026 10:23 MST.</footer>
 </main>
 <div id="tip"></div>
 <script>

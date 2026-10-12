@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parent.parent
 _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 
 TZ = ZoneInfo(_cfg["timezone"])
+HOME_NAME = _cfg["home"]["name"]
+HOME_ELEV_FT = _cfg["home"]["elevation_ft"]
 
 AET = _cfg["heart_rate"]["aerobic_threshold"]
 LT = _cfg["heart_rate"]["lactate_threshold"]
@@ -47,3 +49,9 @@ def altitude_factor_range(from_ft, to_ft):
         return max(0.0, ft - ALT_FLOOR_FT) / 1000 * pct / 100
     lo, hi = ALT_PCT_PER_1000
     return tuple(sorted(((1 + cost(to_ft, p)) / (1 + cost(from_ft, p)) for p in (lo, hi))))
+
+
+def altitude_factor_mid(from_ft, to_ft):
+    """Single best-guess multiplier (midpoint of the model's range)."""
+    lo, hi = altitude_factor_range(from_ft, to_ft)
+    return (lo + hi) / 2
