@@ -14,6 +14,7 @@ from config import (AET, DANIELS_FLOOR_FT, DANIELS_SPM, HOME_ELEV_FT, HOME_NAME,
 
 CTL_DAYS, ATL_DAYS = 42, 7
 TREND_DAYS = 28
+EF_ELEV_TOL_FT = 1000  # pace-at-AeT uses only runs within this of home elevation
 FRESH, TIRED = 5, -10  # form % thresholds
 M_PER_MI = 1609.344
 DISTANCES = [(5000, "5K"), (10000, "10K"), (15000, "15K"), (21097.5, "Half marathon"), (42195, "Marathon")]
@@ -97,7 +98,8 @@ def efficiency(runs, daily):
     by_day = {x["d"]: x for x in daily}
     pts = []
     for r in runs:
-        if r["aet_pace_secs"] and r["date"] in by_day:
+        near_home = not r.get("elev_avg_ft") or abs(int(r["elev_avg_ft"]) - HOME_ELEV_FT) <= EF_ELEV_TOL_FT
+        if r["aet_pace_secs"] and r["date"] in by_day and near_home:
             f = by_day[r["date"]]["formPct"]
             pts.append({"d": r["date"], "p": int(r["aet_pace_secs"]), "n": int(r["aet_secs"]),
                         "mi": float(r["miles"]), "formPct": f,
@@ -233,7 +235,8 @@ def build(plan, built):
         tile("Form", f"{now['form']:+.0f}".replace("-", "−"), f"{fp:+.0f}% · {form_word}".replace("-", "−")),
     ]
     if t_now:
-        tiles.append(tile(f"Pace at AeT ({AET} bpm)", f"{mmss(t_now)}/mi", "28-day trend, flat steady running",
+        tiles.append(tile(f"Pace at AeT ({AET} bpm)", f"{mmss(t_now)}/mi",
+                          f"at {HOME_ELEV_FT:,} ft ({HOME_NAME}) · 28-day trend, flat steady running",
                           (signed((t_now - t_ago) / 1, "{:.0f}", good_up=False) + " s/mi vs. 4 weeks ago") if t_ago else ""))
     best = rc[-1] if rc else None
 
@@ -248,8 +251,13 @@ def build(plan, built):
         return f"{lo:.1f}" if f"{lo:.1f}" == f"{hi:.1f}" else f"{lo:.1f}–{hi:.1f}"
 
     if best:
-        tiles.append(tile("VDOT", f"{best['vdot']:.1f}", f"{best['name']} {best['d']:%b} {best['d'].day} · "
-                          f"{vrange(*vdot_range(best, 0))} at sea level"))
+        # sea-level VDOT: Daniels (average of its s/mi range) averaged with NCAA
+        sl = {k: vdot(best["meters"], t) for k, t in convert_time(best["secs"], best["meters"], src_elev(best), 0).items()}
+        daniels = [v for k, v in sl.items() if k.startswith("Daniels")]
+        sl_vdot = (sum(daniels) / len(daniels) + sl["NCAA"]) / 2
+        tiles.append(tile("VDOT (sea level)", f"{sl_vdot:.1f}",
+                          f"{html.escape(best['name'])}, {best['d']:%b} {best['d'].day}, at {ft(src_elev(best))} · "
+                          f"Daniels/NCAA average"))
 
     spm = "–".join(f"{k:g}" for k in DANIELS_SPM)
     methods_note = (f"Altitude is converted two published ways and shown as a range: Daniels "
@@ -384,7 +392,9 @@ def build(plan, built):
         "so read single runs with that in mind.</p>\n"
         f"<p><b>Pace at AeT</b> uses only seconds with HR {EF_HR_BAND[0]}–{EF_HR_BAND[1]} bpm, moving faster than walking, "
         f"on grades under {EF_MAX_GRADE:.0%}, scaled to exactly {AET} bpm. A run needs at least {EF_MIN_SECS // 60} minutes "
-        f"of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days.</p>\n"
+        f"of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days. "
+        f"Only runs within {EF_ELEV_TOL_FT:,} ft of {HOME_NAME} ({HOME_ELEV_FT:,} ft) count, so the number is a "
+        f"{HOME_NAME}-altitude pace.</p>\n"
         f"<p><b>Zones</b> come from config.json: LT1 (AeT) {AET} bpm and LT2 (LT) {LT} bpm. "
         "The intensity chart puts wider breaks at those two thresholds.</p>\n"
         "<p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race (races.csv, or a planned race) or time trial "
@@ -399,7 +409,7 @@ def build(plan, built):
     subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("fitness.html"), "TILES": "".join(tiles), "RACE": race_html,
             "WEEK_ROWS": wk_rows, "DATA": json.dumps(data, separators=(",", ":")),
             "NEXT": next_html, "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
-            "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
+            "HOME_ELEV": f"{HOME_ELEV_FT:,}", "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
             "ZLEG": "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
                     + '<span><span class="ln brk"></span>LT1 / LT2 break</span>'}
     page = TEMPLATE
@@ -492,7 +502,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <div class="legend"><span><span class="ln" style="background:var(--s1)"></span>Fitness (42-day)</span><span><span class="ln" style="background:var(--s2)"></span>Fatigue (7-day)</span></div>
 </section>
 
-<section class="card"><h2>Aerobic efficiency: pace at %%AET%% bpm</h2>
+<section class="card"><h2>Aerobic efficiency: pace at %%AET%% bpm, at %%HOME_ELEV%% ft</h2>
 <p class="note">Estimated from steady, flat running near AeT. Faster is up. Dots are single runs, colored by form going into that day, so a slow dot on a tired day isn't a sign of lost fitness.</p>
 <div class="chart" id="cEff"></div>
 <div class="legend"><span><span class="ln" style="background:var(--s7)"></span>28-day trend</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span></div>
