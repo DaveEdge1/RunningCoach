@@ -50,7 +50,16 @@ nav.tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); bord
 .legend { margin: 6px 0 0; }
 .legend .ln { display: inline-block; width: 16px; height: 2px; vertical-align: 3px; margin-right: 5px; border-radius: 1px; }
 .legend .dt { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
-.chart { position: relative; height: 240px; margin-top: 6px; }
+.chart { position: relative; height: 240px; margin-top: 6px; touch-action: pan-y; }
+.range { position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; flex-wrap: wrap; align-items: center;
+  gap: 6px 8px; padding: 8px 0; margin-bottom: 6px; }
+.range button { font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 11px; cursor: pointer; }
+.range button:disabled { opacity: .4; cursor: default; }
+.range .seg { display: inline-flex; } .range .seg button { border-radius: 0; margin-left: -1px; }
+.range .seg button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; } .range .seg button:last-child { border-radius: 0 6px 6px 0; }
+.range .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+#rLabel { min-width: 120px; text-align: center; font-variant-numeric: tabular-nums; font-size: 13px; }
 .chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .grid line { stroke: var(--line); stroke-width: 1; }
 .axis text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -104,6 +113,12 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <p class="note"><b>Current fitness</b> (no projected training gains): 10K on Oct 10 (2 days ago), 47:55 at 7,373 ft, VDOT 42.0. Derived as: that result → VDOT → equivalent 10K at 7,373 ft (47:57) → converted to 1,100 ft: Daniels 4 s/mi: 46:08 · Daniels 5 s/mi: 45:41 · NCAA: 45:24.</p>
 </section>
 
+<div class="range" role="group" aria-label="Chart time range">
+  <div class="seg" id="rSpan"><button data-span="30">30 days</button><button data-span="90">90 days</button><button data-span="0">All</button></div>
+  <button id="rPrev" aria-label="Earlier">‹</button><span id="rLabel"></span><button id="rNext" aria-label="Later">›</button>
+  <button id="rLatest">Latest</button>
+  <span class="dim">Drag a chart to scroll</span>
+</div>
 <section class="card"><h2>Weekly mileage</h2>
 <p class="note">Mon–Sun totals, with the 28-day rolling average (mi/wk).</p>
 <div class="chart" id="cMiles"></div>
@@ -151,7 +166,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race (races.csv, or a planned race) or time trial (a planned session named "time trial"). The next-race estimate uses that current fitness with no projected gains. Elevation comes from the run's own file.</p>
 <p><b>Altitude</b> is converted two published ways and shown as a range. <a href="https://news.vdoto2.com/2011/03/ask-a-coach-how-do-you-adjust-threshold-pace-at-altitude/">Daniels</a>: paces slow 4–5 s/mi per 1,000 ft above 3,000 ft (15–18 s/mi at 7,000 ft). <a href="https://www.ustfccca.org/assets/ncaa-info/2009-outdoor-alt-adjust.pdf">NCAA 2009 altitude tables</a>: % added by venue altitude (0–7,703 ft) for the mile, 5K and 10K, interpolated by altitude and distance, and held at the nearest of those distances outside that span. Neither accounts for acclimatization.</p>
 </section>
-<footer>Updated Oct 12, 2026 11:24 MST.</footer>
+<footer>Updated Oct 12, 2026 11:32 MST.</footer>
 </main>
 <div id="tip"></div>
 <script>
@@ -192,9 +207,20 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
       el("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }, g);
       el("text", { x: m.l - 6, y: Y(v) + 4, "text-anchor": "end" }, ax).textContent = yFmt(v);
     });
-    return { svg: svg, X: X, Y: Y, W: W, H: H, m: m, ax: ax };
+    var cp = el("clipPath", { id: "clip-" + id }, el("defs", {}, svg));
+    el("rect", { x: m.l, y: 0, width: W - m.l - m.r, height: H - m.b }, cp);
+    var plot = el("g", { "clip-path": "url(#clip-" + id + ")" }, svg);
+    return { svg: plot, root: svg, X: X, Y: Y, W: W, H: H, m: m, ax: ax };
   }
   function monthTicks(f, x0, x1) {
+    if (x1 - x0 <= 70) {  // weekly ticks on Mondays (day 0 = Thu Jan 1 1970, so Monday = 4 mod 7)
+      var every = (f.X(7) - f.X(0)) < 56 ? 14 : 7;
+      for (var d0 = Math.ceil((x0 - 4) / 7) * 7 + 4; d0 <= x1; d0 += every) {
+        var t = new Date(d0 * 864e5);
+        el("text", { x: f.X(d0), y: f.H - 6, "text-anchor": "middle" }, f.ax).textContent = MON[t.getUTCMonth()] + " " + t.getUTCDate();
+      }
+      return;
+    }
     var d = new Date(x0 * 864e5); d = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 864e5;
     while (d <= x1) {
       var dt = new Date(d * 864e5);
@@ -209,12 +235,26 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
       "H" + (x + w - r) + "Q" + (x + w) + "," + yTop + " " + (x + w) + "," + (yTop + r) + "V" + yBase + "Z";
   }
 
-  var x0 = day(D.daily[0].d), x1 = day(D.daily[D.daily.length - 1].d) + 1;
+  var FIRST = day(D.daily[0].d), LAST = day(D.daily[D.daily.length - 1].d) + 1;
+  var span = 30, vEnd = LAST, x0, x1;  // visible window [x0, x1) in days
+  function setWindow() {
+    var sp = span === 0 ? LAST - FIRST : Math.min(span, LAST - FIRST);
+    vEnd = Math.max(FIRST + sp, Math.min(LAST, vEnd));
+    x0 = vEnd - sp; x1 = vEnd;
+    document.getElementById("rLabel").textContent = fmtDay(x0) + " – " + fmtDay(x1 - 1);
+    document.getElementById("rPrev").disabled = x0 <= FIRST;
+    document.getElementById("rNext").disabled = x1 >= LAST;
+    document.getElementById("rLatest").disabled = x1 >= LAST;
+    Array.prototype.forEach.call(document.querySelectorAll("#rSpan button"), function (b) {
+      b.setAttribute("aria-pressed", String(+b.dataset.span === span)); });
+  }
+  function fmtDay(d) { var t = new Date(d * 864e5); return MON[t.getUTCMonth()] + " " + t.getUTCDate(); }
 
   function miles() {
     var mx = Math.max.apply(null, D.weeks.map(function (w) { return w.mi; }).concat(D.daily.map(function (x) { return x.r28 || 0; })));
     var top = Math.ceil(mx / 10) * 10, ticks = []; for (var v = 0; v <= top; v += 10) ticks.push(v);
-    var f = frame("cMiles", x0 - 3, x1 + 3, 0, top, ticks, function (v) { return v; });
+    // at the latest date, pad right so the current (partial) week bar, drawn mid-week, stays visible
+    var f = frame("cMiles", x0, x1 + (x1 >= LAST ? 4 : 0), 0, top, ticks, function (v) { return v; });
     monthTicks(f, x0, x1);
     var band = f.X(7) - f.X(0), bw = Math.min(24, band - 6);
     D.weeks.forEach(function (w) {
@@ -256,7 +296,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     hit.addEventListener("pointermove", function (ev) {
       var r = f.svg.getBoundingClientRect(), px = (ev.clientX - r.left) * f.W / r.width;
       var dd = x0 + (px - f.m.l) / (f.W - f.m.l - f.m.r) * (x1 - x0);
-      var i = Math.max(0, Math.min(D.daily.length - 1, Math.floor(dd - x0))), x = D.daily[i], cx = f.X(day(x.d) + .5);
+      var i = Math.max(0, Math.min(D.daily.length - 1, Math.floor(dd - FIRST))), x = D.daily[i], cx = f.X(day(x.d) + .5);
       guide.setAttribute("x1", cx); guide.setAttribute("x2", cx); guide.removeAttribute("display");
       dots[0].setAttribute("cx", cx); dots[0].setAttribute("cy", f.Y(x.ctl)); dots[0].removeAttribute("display");
       dots[1].setAttribute("cx", cx); dots[1].setAttribute("cy", f.Y(x.atl)); dots[1].removeAttribute("display");
@@ -296,7 +336,8 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   }
 
   function zones() {
-    var ws = D.weeks.filter(function (w) { return w.hrH > 0; }).slice(-10);
+    var ws = D.weeks.filter(function (w) { return w.hrH > 0 && day(w.w) + 7 > x0 && day(w.w) < x1; });
+    if (!ws.length) { document.getElementById("cZones").innerHTML = ""; return; }
     var box = document.getElementById("cZones"); box.innerHTML = "";
     var W = box.clientWidth, H = box.clientHeight, m = { l: 40, r: 14, t: 10, b: 22 };
     var svg = el("svg", { viewBox: "0 0 " + W + " " + H }, box);
@@ -339,7 +380,25 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     if (band < 44) Array.prototype.forEach.call(ax.querySelectorAll("text"), function (t, i) { if (i >= 3 && (i - 3) % 2) t.textContent = ""; });
   }
 
-  function render() { miles(); load(); eff(); zones(); }
+  function render() { setWindow(); miles(); load(); eff(); zones(); }
+  function shift(days) { vEnd += days; render(); }
+  document.getElementById("rPrev").onclick = function () { shift(-7); };
+  document.getElementById("rNext").onclick = function () { shift(7); };
+  document.getElementById("rLatest").onclick = function () { vEnd = LAST; render(); };
+  Array.prototype.forEach.call(document.querySelectorAll("#rSpan button"), function (b) {
+    b.onclick = function () { span = +b.dataset.span; render(); };
+  });
+  // drag (mouse) or swipe (touch) on a time chart to pan
+  ["cMiles", "cLoad", "cEff", "cZones"].forEach(function (id) {
+    var box = document.getElementById(id), startX = null, startEnd, raf = 0;
+    box.addEventListener("pointerdown", function (ev) { startX = ev.clientX; startEnd = vEnd; box.setPointerCapture(ev.pointerId); });
+    box.addEventListener("pointermove", function (ev) {
+      if (startX === null) return;
+      var plotW = box.clientWidth - 54, dd = Math.round((startX - ev.clientX) / plotW * (x1 - x0));
+      if (dd !== vEnd - startEnd && !raf) raf = requestAnimationFrame(function () { raf = 0; hideTip(); vEnd = startEnd + dd; render(); });
+    });
+    ["pointerup", "pointercancel"].forEach(function (t) { box.addEventListener(t, function () { startX = null; }); });
+  });
   render();
   var rt; window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(render, 120); });
 })();
