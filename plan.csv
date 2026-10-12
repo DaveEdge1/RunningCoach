@@ -21,41 +21,41 @@ date,type,miles,session
 2026-10-30,off,0,Off
 2026-10-31,long,11,Long run (easy)
 2026-11-01,easy,4,Easy + hill sprints
-2026-11-02,easy,4,Easy + 4 short hill sprints (primer)
+2026-11-02,easy,5,Easy + hill sprints
 2026-11-03,workout,6.5,5K time trial
-2026-11-04,easy,4,Easy
-2026-11-05,easy,4,Easy + hill sprints
-2026-11-06,off,0,Off (pack for Grand Canyon)
-2026-11-07,long,8,Long run (easy). Shortened before the trip
-2026-11-08,cross,0,"Backpack 10 mi down Tanner Trail (−4,500 ft). Use poles, go easy on the knees"
-2026-11-09,cross,0,Paddle 8 mi on the Colorado River
-2026-11-10,cross,0,"Hike out 8.5 mi on New Hance Trail (+4,500 ft). Keep it mostly Z1–Z2"
-2026-11-11,off,0,Off. Quads will be sore from the descent
-2026-11-12,easy,5,Easy (leg check). Skip sprints if still sore
+2026-11-04,easy,6,Easy
+2026-11-05,easy,6,Easy + hill sprints
+2026-11-06,long,12,Long run (easy)
+2026-11-07,easy,4.5,Easy
+2026-11-08,cross,0,"Grand Canyon: backpack 10 mi down Tanner Trail (−4,500 ft)"
+2026-11-09,cross,0,Grand Canyon: paddle 8 mi on the Colorado River
+2026-11-10,cross,0,"Grand Canyon: hike out 8.5 mi on New Hance Trail (+4,500 ft)"
+2026-11-11,off,0,Off
+2026-11-12,easy,5,Easy
 2026-11-13,easy,5,Easy + hill sprints
-2026-11-14,long,10,Long run (easy)
+2026-11-14,long,9,Long run (easy)
 2026-11-15,easy,4,Easy + hill sprints
 2026-11-16,easy,5,Easy
 2026-11-17,workout,7.5,6 × 1 km at 10K/interval pace / 2:30 jog
 2026-11-18,easy,5,Easy + hill sprints
 2026-11-19,easy,5,Easy
-2026-11-20,long,12,Long run: last 2 mi steady (Z3). Moved up for the drive
-2026-11-21,off,0,Drive to Puerto Peñasco. Optional 2–3 mi shakeout on arrival
-2026-11-22,easy,5,Easy + strides on the beach (sea level)
-2026-11-23,easy,5,Easy (sea level)
-2026-11-24,workout,7.5,3 × 2 km at goal 10K pace / 3 min jog (sea level: race-pace rehearsal)
-2026-11-25,off,0,Drive home. Optional 2–3 mi shakeout before leaving
-2026-11-26,easy,5,Easy + hill sprints (Thanksgiving)
-2026-11-27,easy,4,Easy
-2026-11-28,long,11,Long run (easy)
-2026-11-29,easy,4,Easy + hill sprints
+2026-11-20,long,12,Long run: last 2 mi steady (Z3)
+2026-11-21,off,0,Off: drive to Puerto Peñasco
+2026-11-22,easy,4,Easy + strides (sea level)
+2026-11-23,easy,4,Easy (sea level)
+2026-11-24,workout,5.5,4 × 1 km at goal 10K pace / 2 min jog (sea level)
+2026-11-25,off,0,Off: drive home
+2026-11-26,workout,8,3 × 1.5 mi threshold / 2 min jog
+2026-11-27,off,0,Off
+2026-11-28,long,12,Long run (easy)
+2026-11-29,easy,5,Easy + hill sprints
 2026-11-30,easy,6,Easy + hill sprints
 2026-12-01,workout,8,4 × 1 mi at 10K pace / 3 min jog
-2026-12-02,long,9,Medium-long run (easy). Moved up for the hunt
-2026-12-03,cross,3,Elk hunt. Optional 3 easy at lunch
-2026-12-04,cross,3,Elk hunt. Optional 3 easy at lunch
-2026-12-05,cross,3,Elk hunt. Optional 3 easy at lunch
-2026-12-06,cross,3,Elk hunt. Optional 3 easy at lunch
+2026-12-02,easy,6,Easy + hill sprints
+2026-12-03,cross,3,Elk hunt: optional 3 easy at lunch
+2026-12-04,cross,3,Elk hunt: optional 3 easy at lunch
+2026-12-05,cross,3,Elk hunt: optional 3 easy at lunch
+2026-12-06,cross,3,Elk hunt: optional 3 easy at lunch
 2026-12-07,easy,5,Easy + hill sprints
 2026-12-08,workout,7.5,3 × 2 km at goal effort / 3 min jog
 2026-12-09,easy,5,Easy + hill sprints

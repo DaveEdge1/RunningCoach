@@ -1,7 +1,7 @@
 # Training Plan: Phoenix 10K, Sat Dec 26, 2026
 
 **Start:** ~28 mi/wk on 5 days (4-week rolling average). 10K at 7,400 ft in 47:55 on Oct 10.
-**Target:** ~40 mi/wk on 6 days, adjusted around three trips (see Trips below).
+**Target:** ~40 mi/wk on 6 days. The three trips are the cut-back weeks.
 **All training in Flagstaff (~7,000 ft).** The race is at ~1,100 ft, so expect race pace to feel easier than it does at home.
 
 ## Intensity guide (HR is primary; paces are Flagstaff estimates)
@@ -21,26 +21,23 @@
 Workouts include ~1.5 mi warm-up and cool-down. The day before or after a workout is always easy.
 
 ## Week by week
-| Wk | Dates | Run miles | Workout A (Tue) | Workout B (Thu) | Long (Sat) |
-|---|---|---|---|---|---|
-| 1 | Oct 12–18 | 32 | Race recovery: easy only. Sprints from Wed. | easy | 9 easy |
-| 2 | Oct 19–25 | 35 | 4 × 1 mi threshold, 2 min jog | easy | 10 easy |
-| 3 | Oct 26–Nov 1 | 37 | 3 × 1.5 mi threshold, 2 min jog | easy | 11 easy |
-| 4 | Nov 2–8 | 26.5 + backpacking | **5K time trial** (sets goal and paces) | easy | Sat 8 easy · **Sun: Grand Canyon, 10 mi down Tanner (−4,500 ft)** |
-| 5 | Nov 9–15 | 24 (trip recovery) | **Mon: paddle 8 mi · Tue: hike out 8.5 mi (+4,500 ft)** · Wed off | easy (leg check) | 10 easy |
-| 6 | Nov 16–22 | 39.5 | 6 × 1 km at 10K/interval pace, 2:30 jog | easy | **Fri** 12, last 2 steady · Sat: drive to Puerto Peñasco |
-| 7 | Nov 23–29 | 36.5 | **3 × 2 km at goal 10K pace, at sea level** · Wed: drive home | easy (Thanksgiving) | 11 easy |
-| 8 | Nov 30–Dec 6 | 35 | 4 × 1 mi at 10K pace, 3 min jog | **Thu–Sun: elk hunt**, optional 3 easy at lunch | **Wed** 9 medium-long |
-| 9 | Dec 7–13 | 40.5 | 3 × 2 km at goal effort, 3 min jog | 3 × 1.5 mi threshold | 13, last 3 steady |
-| 10 | Dec 14–20 | 33 (taper) | 6 × 1 km at 10K pace, 2 min jog | easy | 10 easy |
-| 11 | Dec 21–26 | ~20 + race | Mon 4 easy · Tue 4 × 1 km goal effort · Wed 4 + sprints · Thu 3 easy · Fri off or 2-mi shakeout | | **Sat: RACE** |
+Cut-back weeks fall on the trips. The weeks in between build toward 40.
 
-Paces from week 5 on will be updated from the week 4 time trial.
+| Wk | Dates | Run miles | Key sessions | Long |
+|---|---|---|---|---|
+| 1 | Oct 12–18 | 32 | Race recovery: easy only | Sat 9 |
+| 2 | Oct 19–25 | 35 | Tue 4 × 1 mi threshold | Sat 10 |
+| 3 | Oct 26–Nov 1 | 37 | Tue 3 × 1.5 mi threshold | Sat 11 |
+| 4 | Nov 2–8 | 40 | Tue **5K time trial** | Fri 12 |
+| 5 | Nov 9–15 | 23 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10) | Sat 9 |
+| 6 | Nov 16–22 | 38.5 | Tue 6 × 1 km at 10K/interval pace | Fri 12, last 2 steady |
+| 7 | Nov 23–29 | 34.5 · **cut-back** | **Puerto Peñasco** (Sat Nov 21–Wed Nov 25): Tue 4 × 1 km at goal pace (sea level) · Thu 3 × 1.5 mi threshold | Sat 12 |
+| 8 | Nov 30–Dec 6 | 20 (+12 optional) · **cut-back** | Tue 4 × 1 mi at 10K pace · **Elk hunt** (Thu Dec 3–Sun Dec 6) | n/a |
+| 9 | Dec 7–13 | 40.5 | Tue 3 × 2 km at goal effort · Thu 3 × 1.5 mi threshold | Sat 13, last 3 steady |
+| 10 | Dec 14–20 | 33 · taper | Tue 6 × 1 km at 10K pace | Sat 10 |
+| 11 | Dec 21–26 | ~20 + race | Tue 4 × 1 km at goal effort | **Sat: RACE** |
 
-## Trips
-- **Grand Canyon, Nov 8–10:** Counted as training. The descent is a heavy eccentric load on your quads and knees, so expect soreness for 2–3 days. Take Wed off, keep Thu easy, and skip sprints until the soreness is gone. Keep the hike out mostly Z1–Z2.
-- **Puerto Peñasco, Nov 21–25:** Tue Nov 24 is a sea-level rehearsal at goal 10K pace, the best chance to feel what race pace is like before Dec 26. Drive days are rest days, with an optional 2–3 mi shakeout to loosen up after sitting.
-- **Elk hunt, Dec 3–6:** The workout and medium-long run come before the hunt. Lunch runs are optional, easy, and capped at 3 mi. A hard hunt (early mornings, packing out) counts as training, so skip the runs if you're wiped. The 13-mile long run moves to Dec 12.
+Paces from week 5 on will be updated from the week 4 time trial. See `plan.csv` (or the calendar) for each day.
 
 ## This week and next, day by day
 **Week 1 (Oct 12–18), race recovery, 32 mi on 6 days, all easy**
