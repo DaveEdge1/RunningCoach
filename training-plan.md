@@ -28,16 +28,16 @@ Cut-back weeks fall on the trips. The weeks in between build toward 40.
 | 1 | Oct 12–18 | 32 | Race recovery: easy only | Sat 9 |
 | 2 | Oct 19–25 | 35 | Tue 4 × 1 mi threshold | Sat 10 |
 | 3 | Oct 26–Nov 1 | 37 | Tue 3 × 1.5 mi threshold | Sat 11 |
-| 4 | Nov 2–8 | 40 | Tue **5K time trial** | Fri 12 |
+| 4 | Nov 2–8 | 40.5 | Tue 2 × 2 mi threshold | Fri 12 |
 | 5 | Nov 9–15 | 23 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10) | Sat 9 |
 | 6 | Nov 16–22 | 38.5 | Tue 6 × 1 km at 10K/interval pace | Fri 12, last 2 steady |
 | 7 | Nov 23–29 | 34.5 · **cut-back** | **Puerto Peñasco** (Sat Nov 21–Wed Nov 25): Tue 4 × 1 km at goal pace (sea level) · Thu 3 × 1.5 mi threshold | Sat 12 |
-| 8 | Nov 30–Dec 6 | 20 (+12 optional) · **cut-back** | Tue 4 × 1 mi at 10K pace · **Elk hunt** (Thu Dec 3–Sun Dec 6) | n/a |
+| 8 | Nov 30–Dec 6 | 17.5 (+12 optional) · **cut-back** | Tue **5K time trial** (checkpoint for the goal) · **Elk hunt** (Thu Dec 3–Sun Dec 6) | n/a |
 | 9 | Dec 7–13 | 40.5 | Tue 3 × 2 km at goal effort · Thu 3 × 1.5 mi threshold | Sat 13, last 3 steady |
 | 10 | Dec 14–20 | 33 · taper | Tue 6 × 1 km at 10K pace | Sat 10 |
 | 11 | Dec 21–26 | ~20 + race | Tue 4 × 1 km at goal effort | **Sat: RACE** |
 
-Paces from week 5 on will be updated from the week 4 time trial. See `plan.csv` (or the calendar) for each day.
+Paces come from the most recent race or time trial: the Oct 10 10K until the Dec 1 time trial, which also checks progress toward the goal. See `plan.csv` (or the calendar) for each day.
 
 ## This week and next, day by day
 **Week 1 (Oct 12–18), race recovery, 32 mi on 6 days, all easy**

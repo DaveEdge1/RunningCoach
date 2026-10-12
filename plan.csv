@@ -22,7 +22,7 @@ date,type,miles,session
 2026-10-31,long,11,Long run (easy)
 2026-11-01,easy,4,Easy + hill sprints
 2026-11-02,easy,5,Easy + hill sprints
-2026-11-03,workout,6.5,5K time trial
+2026-11-03,workout,7,2 × 2 mi threshold / 3 min jog
 2026-11-04,easy,6,Easy
 2026-11-05,easy,6,Easy + hill sprints
 2026-11-06,long,12,Long run (easy)
@@ -49,8 +49,8 @@ date,type,miles,session
 2026-11-27,off,0,Off
 2026-11-28,long,12,Long run (easy)
 2026-11-29,easy,5,Easy + hill sprints
-2026-11-30,easy,6,Easy + hill sprints
-2026-12-01,workout,8,4 × 1 mi at 10K pace / 3 min jog
+2026-11-30,easy,5,Easy + strides
+2026-12-01,workout,6.5,5K time trial
 2026-12-02,easy,6,Easy + hill sprints
 2026-12-03,cross,3,Elk hunt: optional 3 easy at lunch
 2026-12-04,cross,3,Elk hunt: optional 3 easy at lunch
