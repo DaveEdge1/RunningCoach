@@ -233,14 +233,14 @@ TEMPLATE = """<!doctype html>
   --bg: #f7f7f5; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e4e3df;
   --easy: #3b82c4; --long: #7a5cc4; --workout: #d9822b; --race: #d43d3d; --cross: #2a9d8f;
   --ok: #2e8b57; --miss: #b8b6ae; --today: #e0b100; --curwk: rgba(224, 177, 0, .16);
-  --z1: #a9b4c2; --z2: #5b9bd5; --z3: #6bbf7a; --z4: #f0a640; --z5: #e0534a;
+  --z1: #3a9d5d; --z2: #9cc43a; --z3: #f0c330; --z4: #ee8a2c; --z5: #d63c35;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #161615; --card: #20201e; --ink: #ecebe6; --muted: #9a998f; --line: #34332f;
     --easy: #6aa9e0; --long: #a48be6; --workout: #f0a24f; --race: #f06b6b; --cross: #4cc2b3;
     --ok: #5cc48a; --miss: #5d5c56; --today: #d9b23a; --curwk: rgba(217, 178, 58, .18);
-    --z1: #6f7a88; --z2: #4f8cc4; --z3: #57a866; --z4: #d99236; --z5: #cc4a42;
+    --z1: #3fa862; --z2: #94bd3f; --z3: #e3b93a; --z4: #e2883a; --z5: #d4473f;
   }
 }
 * { box-sizing: border-box; }
