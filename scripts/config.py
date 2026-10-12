@@ -29,14 +29,32 @@ def zone_range(lo, hi):
 
 
 
+def parse_clock(s):
+    """'45:00', '0:45:00' or '7:15' -> seconds."""
+    secs = 0.0
+    for part in s.split(":"):
+        secs = secs * 60 + float(part)
+    return secs
+
+
+def _race(r):
+    meters = float(r["distance_km"]) * 1000
+    gt, gp = (r.get("goal_time") or "").strip(), (r.get("goal_pace") or "").strip()
+    if gt and gp:
+        raise ValueError(f"races.csv {r['date']}: fill in goal_time or goal_pace, not both")
+    goal = parse_clock(gt) if gt else parse_clock(gp) * meters / M_PER_MI if gp else None
+    return {"date": date.fromisoformat(r["date"]), "name": r["name"], "location": r["location"],
+            "meters": meters, "elev": int(r["elevation_ft"]) if r["elevation_ft"] else None,
+            "notes": r["course_notes"], "goal_secs": goal, "goal_from": "time" if gt else "pace" if gp else None}
+
+
 def load_races():
-    """Race calendar from races.csv (past and upcoming), sorted by date."""
+    """Race calendar from races.csv (past and upcoming), sorted by date.
+
+    Each race takes goal_time or goal_pace (per mile); the other is derived from it.
+    """
     with open(ROOT / "races.csv", encoding="utf-8", newline="") as f:
-        rows = list(csv.DictReader(f))
-    return sorted(({"date": date.fromisoformat(r["date"]), "name": r["name"], "location": r["location"],
-                    "meters": float(r["distance_km"]) * 1000,
-                    "elev": int(r["elevation_ft"]) if r["elevation_ft"] else None,
-                    "notes": r["course_notes"]} for r in rows), key=lambda r: r["date"])
+        return sorted((_race(r) for r in csv.DictReader(f)), key=lambda r: r["date"])
 
 
 def next_race(today=None):

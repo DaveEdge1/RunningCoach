@@ -266,6 +266,22 @@ def build(plan, built):
             est = ""
             reason = "this race has no elevation in races.csv" if best else "no completed race or time trial yet"
             basis = f'<p class="note">No estimate: {reason}.</p>'
+        g = nr["goal_secs"]
+        if g:
+            derived = ' <span class="dim">(from goal pace)</span>', ' <span class="dim">(from goal time)</span>'
+            rows += [("Goal time", f"<b>{hms(g)}</b>" + (derived[0] if nr["goal_from"] == "pace" else "")),
+                     ("Goal pace", f"<b>{mmss(g / mi)}/mi</b>" + (derived[1] if nr["goal_from"] == "time" else ""))]
+            if est:
+                vs = ("within your current-fitness range" if lo <= g <= hi else
+                      f"{lo - g:.0f}–{hi - g:.0f} s faster than current fitness" if g < lo else
+                      f"{g - hi:.0f}–{g - lo:.0f} s slower than current fitness")
+                rows.append(("Goal vs. now", vs + f" · needs VDOT {vdot(nr['meters'], g):.1f} at {ft(nr['elev'])}"))
+            if nr["elev"] is not None:
+                hlo, hhi = convert_range(g, nr["meters"], nr["elev"], HOME_ELEV_FT)
+                v_lo, v_hi = vdot(nr["meters"], hhi), vdot(nr["meters"], hlo)
+                rows += [(f"Goal at {HOME_NAME}", f"{dist_label(nr['meters'])} {hms_range(hlo, hhi)} · "
+                                                 f"{mmss_range(hlo / mi, hhi / mi)}/mi"),
+                         (f"5K checkpoint at {HOME_NAME}", hms_range(predict(v_hi, 5000), predict(v_lo, 5000)))]
         details = "".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in rows)
         next_html = (f'\n<section class="card next"><h2>Next race: {html.escape(nr["name"])}</h2>\n'
                      f'<div class="grid2"><table class="t kv">{details}</table>{est}</div>\n{basis}\n</section>')
@@ -402,7 +418,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .z5 { background: var(--z5); fill: var(--z5); }
 .next .kv td:first-child { color: var(--muted); padding-right: 18px; } .next .kv td:last-child { text-align: left; }
 .est { display: flex; gap: 28px; align-items: flex-start; } .est small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
-.next .note b { color: var(--ink); }
+.next .note b { color: var(--ink); } .dim { color: var(--muted); font-size: 12px; }
 .about p { font-size: 13px; color: var(--muted); margin: 6px 0; }
 .about b { color: var(--ink); font-weight: 600; }
 @media (max-width: 760px) { .chart { height: 200px; } .tv { font-size: 22px; } }
