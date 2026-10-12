@@ -1,0 +1,3 @@
+# FIT file ids (filename without .fit) that were made by hand rather than recorded.
+# These count toward mileage but are left out of the lap, HR, and pace analysis.
+7d68fc2f1212421c86945f3ca9f53864  # 2026-09-20, 12.07 mi long run, watch forgotten

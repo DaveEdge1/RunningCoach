@@ -1,0 +1,11 @@
+# Secrets
+.env
+
+# Raw data: FIT files and exports contain GPS tracks (start/end locations)
+data/fit/
+data/coros_export/
+data/activities.json
+*.zip
+*.fit
+
+__pycache__/
