@@ -379,7 +379,7 @@ def build(plan, built):
         f"<td>{w['atl'] if w['atl'] is not None else ''}</td>" + "".join(f"<td>{z}%</td>" for z in w["z"]) + "</tr>"
         for w in reversed(weeks))
 
-    data = {"daily": daily, "weeks": weeks, "eff": pts, "trend": trend, "today": today.isoformat(),
+    data = {"daily": daily, "weeks": weeks, "eff": pts, "trend": trend, "trendDays": TREND_DAYS, "today": today.isoformat(),
             "aet": AET, "zones": [f"{n} {zone_range(lo, hi)}" for n, lo, hi in ZONES],
             "breaks": [1, 3]}  # zone indexes below the LT1 (AeT) and LT2 (LT) boundaries
     first = date.fromisoformat(daily[0]["d"])
@@ -392,7 +392,8 @@ def build(plan, built):
         "so read single runs with that in mind.</p>\n"
         f"<p><b>Pace at AeT</b> uses only seconds with HR {EF_HR_BAND[0]}–{EF_HR_BAND[1]} bpm, moving faster than walking, "
         f"on grades under {EF_MAX_GRADE:.0%}, scaled to exactly {AET} bpm. A run needs at least {EF_MIN_SECS // 60} minutes "
-        f"of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days. "
+        f"of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days, and each "
+        f"point is drawn at the center of its window, so the line stops about {TREND_DAYS // 2} days short of today. "
         f"Only runs within {EF_ELEV_TOL_FT:,} ft of {HOME_NAME} ({HOME_ELEV_FT:,} ft) count, so the number is a "
         f"{HOME_NAME}-altitude pace.</p>\n"
         f"<p><b>Zones</b> come from config.json: LT1 (AeT) {AET} bpm and LT2 (LT) {LT} bpm. "
@@ -686,7 +687,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     for (var v = lo; v <= hi; v += 30) ticks.push(v);
     var f = frame("cEff", x0, x1, lo, hi, ticks, mmss, true);
     monthTicks(f, x0, x1);
-    var tp = D.trend.map(function (t) { return [day(t.d) + .5, t.p]; });
+    var tp = D.trend.map(function (t) { return [day(t.d) + 1 - D.trendDays / 2, t.p]; });  // plot each value at the center of its window
     if (tp.length) el("path", { d: linePath(f, tp), fill: "none", stroke: "var(--s7)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
     D.eff.forEach(function (p) {
       var cx = f.X(day(p.d) + .5), cy = f.Y(p.p);
