@@ -13,7 +13,7 @@ from config import (AET, DANIELS_FLOOR_FT, DANIELS_SPM, HOME_ELEV_FT, HOME_NAME,
                     zone_range)
 
 CTL_DAYS, ATL_DAYS = 42, 7
-TREND_DAYS = 28
+TREND_DAYS = 14
 EF_ELEV_TOL_FT = 1000  # pace-at-AeT uses only runs within this of home elevation
 FRESH, TIRED = 5, -10  # form % thresholds
 M_PER_MI = 1609.344
@@ -236,7 +236,7 @@ def build(plan, built):
     ]
     if t_now:
         tiles.append(tile(f"Pace at AeT ({AET} bpm)", f"{mmss(t_now)}/mi",
-                          f"at {HOME_ELEV_FT:,} ft ({HOME_NAME}) · 28-day trend, flat steady running",
+                          f"at {HOME_ELEV_FT:,} ft ({HOME_NAME}) · {TREND_DAYS}-day trend, flat steady running",
                           (signed((t_now - t_ago) / 1, "{:.0f}", good_up=False) + " s/mi vs. 4 weeks ago") if t_ago else ""))
     best = rc[-1] if rc else None
 
@@ -409,7 +409,7 @@ def build(plan, built):
     subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("fitness.html"), "TILES": "".join(tiles), "RACE": race_html,
             "WEEK_ROWS": wk_rows, "DATA": json.dumps(data, separators=(",", ":")),
             "NEXT": next_html, "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
-            "HOME_ELEV": f"{HOME_ELEV_FT:,}", "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
+            "HOME_ELEV": f"{HOME_ELEV_FT:,}", "TREND_DAYS": str(TREND_DAYS), "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
             "ZLEG": "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
                     + '<span><span class="ln brk"></span>LT1 / LT2 break</span>'}
     page = TEMPLATE
@@ -520,7 +520,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <section class="card"><h2>Aerobic efficiency: pace at %%AET%% bpm, at %%HOME_ELEV%% ft</h2>
 <p class="note">Estimated from steady, flat running near AeT. Faster is up. Dots are single runs, colored by form going into that day, so a slow dot on a tired day isn't a sign of lost fitness.</p>
 <div class="chart" id="cEff"></div>
-<div class="legend"><span><span class="ln" style="background:var(--s7)"></span>28-day trend</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span></div>
+<div class="legend"><span><span class="ln" style="background:var(--s7)"></span>%%TREND_DAYS%%-day trend</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span></div>
 </section>
 
 <section class="card"><h2>Intensity by week</h2>
