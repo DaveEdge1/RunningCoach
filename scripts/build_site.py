@@ -6,7 +6,7 @@ import calendar, csv, html
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from config import ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, next_race, zone_range
+from config import AET, LT, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, next_race, zone_range
 TYPES = {"easy": "Easy", "long": "Long", "workout": "Workout", "race": "Race",
          "cross": "Cross-train", "off": "Off"}
 
@@ -36,7 +36,13 @@ def load_actuals():
         for r in csv.DictReader(f):
             laps[(r["date"], r["start"])].append(r)
     days = defaultdict(lambda: {"miles": 0.0, "secs": 0, "hr_secs": 0, "hr_sum": 0, "elev": 0,
-                                "zones": [0.0] * len(ZONE_COLS), "runs": [], "manual": False})
+                                "zones": [0.0] * len(ZONE_COLS), "runs": [], "manual": False, "hist": {}})
+    hist = {}
+    if (ROOT / "data" / "hr_hist.csv").exists():
+        with open(ROOT / "data" / "hr_hist.csv", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                hist[(r["date"], r["start"])] = {int(b): int(c) for b, c in
+                                                 (p.split(":") for p in r["bpm_secs"].split())}
     with open(ROOT / "data" / "runs.csv", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             d = days[date.fromisoformat(r["date"])]
@@ -52,6 +58,8 @@ def load_actuals():
                 d["hr_secs"] += n
                 d["hr_sum"] += int(r["avg_hr"]) * n
                 d["zones"] = [z + float(r[c]) * n / 100 for z, c in zip(d["zones"], ZONE_COLS)]
+                for b, c in hist.get((r["date"], r["start"]), {}).items():
+                    d["hist"][b] = d["hist"].get(b, 0) + c
     return days
 
 
@@ -73,6 +81,47 @@ def zone_bar(zones, total):
                    for i, z in enumerate(zones) if z)
     title = " · ".join(f"Z{i + 1} {100 * z / total:.0f}%" for i, z in enumerate(zones))
     return f'<span class="zbar" title="{title}">{segs}</span>'
+
+
+HIST_RANGE = (100, 190)   # bpm shown on every run's curve, so runs line up
+HIST_KERNEL = [1, 2, 3, 2, 1]  # triangular smoothing over 5 bpm
+
+
+def hr_curve(counts, W=420, H=64):
+    """Smoothed HR distribution as inline SVG: filled by zone, dashed AeT/LT lines, own-peak scaling."""
+    if not counts:
+        return ""
+    lo, hi = HIST_RANGE
+    c = [0] * (hi - lo + 1)
+    for b, n in counts.items():
+        c[min(hi, max(lo, b)) - lo] += n
+    r = len(HIST_KERNEL) // 2
+    sm = [sum(k * c[i + j - r] for j, k in enumerate(HIST_KERNEL) if 0 <= i + j - r < len(c)) / sum(HIST_KERNEL)
+          for i in range(len(c))]
+    top, ph = max(sm) or 1, H - 14
+    X = lambda b: (b - lo) / (hi - lo) * W
+    Y = lambda v: ph - v / top * (ph - 2)
+    parts = []
+    for zi, (name, zlo, zhi) in enumerate(ZONES, 1):
+        a, b = max(zlo, lo), min(zhi, hi + 1)  # zone spans [a, b) in bpm
+        if a >= b:
+            continue
+        mins = sum(n for bpm, n in counts.items() if zlo <= bpm < zhi) / 60
+        if mins < 0.05:
+            continue
+        xs = [max(lo, a - .5)] + list(range(a, b)) + [min(hi, b - .5)]
+        val = lambda x: sm[min(len(sm) - 1, max(0, round(x) - lo))]
+        d = f"M{X(xs[0]):.1f},{ph} " + " ".join(f"L{X(x):.1f},{Y(val(x)):.1f}" for x in xs) + f" L{X(xs[-1]):.1f},{ph}Z"
+        parts.append(f'<path class="f{zi}" d="{d}"><title>{html.escape(name)} {html.escape(zone_range(zlo, zhi))}: {mins:.0f} min</title></path>')
+    for v, lab in ((AET, f"AeT {AET}"), (LT, f"LT {LT}")):
+        parts.append(f'<line class="thr" x1="{X(v):.1f}" x2="{X(v):.1f}" y1="0" y2="{ph}"/>'
+                     f'<text x="{X(v):.1f}" y="{H - 2}" text-anchor="middle">{lab}</text>')
+    for v in range(lo + 20, hi + 1, 20):
+        if min(abs(v - AET), abs(v - LT)) > 8:
+            parts.append(f'<text x="{X(v):.1f}" y="{H - 2}" text-anchor="middle">{v}</text>')
+    total = sum(counts.values()) / 60
+    return (f'<svg class="hrc" viewBox="0 0 {W} {H}" role="img" aria-label="Heart rate distribution, {total:.0f} min">'
+            f'<line class="base" x1="0" x2="{W}" y1="{ph}" y2="{ph}"/>{"".join(parts)}</svg>')
 
 
 def zone_text(zones, total):
@@ -172,7 +221,7 @@ def week_day(d, plan, act):
     body = plan_html(p) if p else '<div class="plan none">—</div>'
     if a:
         body += f'<div class="act">{act_summary(a)} · {a["elev"]} ft'
-        body += zone_bar(a["zones"], a["hr_secs"])
+        body += hr_curve(a["hist"]) or zone_bar(a["zones"], a["hr_secs"])
         if a["hr_secs"]:
             body += f'<div class="zts">{zone_text(a["zones"], a["hr_secs"])}</div>'
         body += "".join(laps_table(r) for r in a["runs"]) + "</div>"
@@ -344,6 +393,12 @@ body.weekly #monthly, body:not(.weekly) #weekly { display: none; }
 .wday .sess { font-size: 13px; }
 .wday .act { font-size: 13px; }
 .wday .zbar { max-width: 420px; height: 6px; }
+.hrc { display: block; width: 100%; max-width: 420px; height: auto; margin-top: 6px; overflow: visible; }
+.hrc text { font-size: 10px; fill: var(--muted); }
+.hrc .thr { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; opacity: .5; }
+.hrc .base { stroke: var(--line); }
+.hrc path:hover { opacity: .8; }
+.f1 { fill: var(--z1); } .f2 { fill: var(--z2); } .f3 { fill: var(--z3); } .f4 { fill: var(--z4); } .f5 { fill: var(--z5); }
 details { margin-top: 6px; color: var(--ink); }
 summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 table.laps { border-collapse: collapse; margin-top: 4px; font-size: 12px; font-variant-numeric: tabular-nums; }

@@ -6,7 +6,7 @@ The existing data/runs.csv and data/laps.csv are the permanent record: runs with
 present (e.g., COROS-export-only runs when this runs on GitHub Actions) keep their old rows.
 
 Usage: python scripts/analyze.py   (run scripts/sync.py first)
-Writes data/laps.csv and data/runs.csv, prints rolling mileage.
+Writes data/laps.csv, data/runs.csv, and data/hr_hist.csv (seconds at each bpm), prints rolling mileage.
 """
 import csv, warnings
 from datetime import date, timedelta
@@ -92,7 +92,7 @@ def load_runs():
 
 
 def main():
-    lap_rows, run_rows, daily = [], [], {}
+    lap_rows, run_rows, hist_rows, daily = [], [], [], {}
     zone_secs = [0] * len(ZONES)
     manual = {l.split("#")[0].strip() for l in MANUAL_LIST.read_text().splitlines()} - {""}
     for fid, s, laps, recs in load_runs():
@@ -112,6 +112,10 @@ def main():
                              int(l["time"]), pace(l["time"], l["dist"]), l["avg_hr"], l["max_hr"],
                              round(l["ascent"] * FT_PER_M), round(l["descent"] * FT_PER_M),
                              l["cadence"] and l["cadence"] * 2])
+        counts = {}
+        for h in hr:
+            counts[h] = counts.get(h, 0) + 1
+        hist_rows.append([d, local.strftime("%H:%M"), " ".join(f"{b}:{c}" for b, c in sorted(counts.items()))])
         n = len(hr) or 1
         zs = [sum(lo <= h < hi for h in hr) for _, lo, hi in ZONES]
         zone_secs = [a + b for a, b in zip(zone_secs, zs)]
@@ -133,8 +137,9 @@ def main():
     stale = {(r[0], r[1]) for r in old_runs if r[-1].split(" ")[0] not in present}
     run_rows[:] = [r for r in run_rows if (str(r[0]), r[1]) not in stale]
     lap_rows[:] = [r for r in lap_rows if (str(r[0]), r[1]) not in stale]
+    hist_rows[:] = [r for r in hist_rows if (str(r[0]), r[1]) not in stale]
     have = {(str(r[0]), r[1]) for r in run_rows}
-    for name, rows in (("runs.csv", run_rows), ("laps.csv", lap_rows)):
+    for name, rows in (("runs.csv", run_rows), ("laps.csv", lap_rows), ("hr_hist.csv", hist_rows)):
         path = ROOT / "data" / name
         if path.exists():
             with open(path, newline="") as f:
@@ -146,6 +151,11 @@ def main():
                     daily[d] = daily.get(d, 0) + float(r[2])
     run_rows.sort(key=lambda r: (str(r[0]), r[1]))
     lap_rows.sort(key=lambda r: (str(r[0]), r[1], int(r[2])))
+    hist_rows.sort(key=lambda r: (str(r[0]), r[1]))
+    with open(ROOT / "data" / "hr_hist.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["date", "start", "bpm_secs"])  # "bpm:seconds" pairs
+        w.writerows(hist_rows)
 
     with open(ROOT / "data" / "laps.csv", "w", newline="") as f:
         w = csv.writer(f)
