@@ -122,7 +122,17 @@ def main():
                          round(s["ascent"] * FT_PER_M), len(hr), round(run_load(zs)),
                          *(lambda p, n: (round(p) if p else "", n))(*aet_pace(recs)), elev_avg, fid])
 
-    # keep rows for runs whose FIT file isn't here (the CSVs are the permanent record)
+    # The CSVs are the permanent record. Keep a run's old rows when the FIT file they came from
+    # isn't here (COROS-export-only runs, or a hand-added file intervals.icu also has a copy of),
+    # so the same run never flips between versions depending on which machine ran this.
+    present = {p.stem for d in FIT_DIRS for p in d.glob("*.fit")}
+    old_runs = []
+    if (ROOT / "data" / "runs.csv").exists():
+        with open(ROOT / "data" / "runs.csv", newline="") as f:
+            old_runs = list(csv.reader(f))[1:]
+    stale = {(r[0], r[1]) for r in old_runs if r[-1].split(" ")[0] not in present}
+    run_rows[:] = [r for r in run_rows if (str(r[0]), r[1]) not in stale]
+    lap_rows[:] = [r for r in lap_rows if (str(r[0]), r[1]) not in stale]
     have = {(str(r[0]), r[1]) for r in run_rows}
     for name, rows in (("runs.csv", run_rows), ("laps.csv", lap_rows)):
         path = ROOT / "data" / name
