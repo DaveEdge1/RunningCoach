@@ -230,7 +230,7 @@ def build(plan, built):
         tile("Last 7 days", f"{now['r7']:.1f} mi"),
         tile("28-day average", f"{now['r28']:.1f} mi/wk",
              delta=(signed(now["r28"] - prev28) + " vs. previous 28 days") if prev28 else ""),
-        tile("Fitness", f"{now['ctl']:.0f}", "42-day training load",
+        tile("Long-term load", f"{now['ctl']:.0f}", f"{CTL_DAYS}-day average daily load",
              (signed(now["ctl"] - ago["ctl"], "{:.0f}") + " vs. 4 weeks ago") if ago else ""),
         tile("Form", f"{now['form']:+.0f}".replace("-", "−"), f"{fp:+.0f}% · {form_word}".replace("-", "−")),
     ]
@@ -386,7 +386,9 @@ def build(plan, built):
     about = (
         f"<p><b>Load</b> is HR-zone-weighted minutes: each minute in Z1 counts 1, Z2 counts 2, and so on up to Z5 = 5. "
         f"Runs without real HR count {MANUAL_LOAD_PER_MIN:g} per minute.</p>\n"
-        f"<p><b>Fitness / fatigue</b> are exponentially weighted averages of daily load over {CTL_DAYS} and {ATL_DAYS} days. "
+        f"<p><b>Long-term / recent load</b> are exponentially weighted averages of daily load over {CTL_DAYS} and {ATL_DAYS} days "
+        "(often called fitness and fatigue, CTL and ATL). They measure how much you train, not how fit you are: steady training "
+        "keeps them flat even while you improve. Fitness gains show up in pace at AeT and VDOT. "
         f"History begins {first:%b} {first.day}, {first.year}, so both start at the average load of the first four weeks.</p>\n"
         "<p><b>Form</b> measures training fatigue only. Sleep, stress, heat, and illness aren't included, "
         "so read single runs with that in mind.</p>\n"
@@ -410,7 +412,7 @@ def build(plan, built):
     subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("fitness.html"), "TILES": "".join(tiles), "RACE": race_html,
             "WEEK_ROWS": wk_rows, "DATA": json.dumps(data, separators=(",", ":")),
             "NEXT": next_html, "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
-            "HOME_ELEV": f"{HOME_ELEV_FT:,}", "TREND_DAYS": str(TREND_DAYS), "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
+            "HOME_ELEV": f"{HOME_ELEV_FT:,}", "TREND_DAYS": str(TREND_DAYS), "CTL": str(CTL_DAYS), "ATL": str(ATL_DAYS), "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
             "ZLEG": "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
                     + '<span><span class="ln brk"></span>LT1 / LT2 break</span>'}
     page = TEMPLATE
@@ -513,9 +515,9 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 </section>
 
 <section class="card"><h2>Training load</h2>
-<p class="note">Fitness is the 42-day average daily load and fatigue is the 7-day average. Form = fitness − fatigue.</p>
+<p class="note">Long-term load is the %%CTL%%-day average daily load and recent load the %%ATL%%-day average. Form = long-term − recent. These track how much you train; fitness gains show up in pace at AeT and VDOT below.</p>
 <div class="chart" id="cLoad"></div>
-<div class="legend"><span><span class="ln" style="background:var(--s1)"></span>Fitness (42-day)</span><span><span class="ln" style="background:var(--s2)"></span>Fatigue (7-day)</span></div>
+<div class="legend"><span><span class="ln" style="background:var(--s1)"></span>Long-term load (%%CTL%%-day)</span><span><span class="ln" style="background:var(--s2)"></span>Recent load (%%ATL%%-day)</span></div>
 </section>
 
 <section class="card"><h2>Aerobic efficiency: pace at %%AET%% bpm, at %%HOME_ELEV%% ft</h2>
@@ -533,7 +535,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 %%RACE%%
 
 <section class="card"><details><summary>Weekly data table</summary><div class="scroll"><table class="t full">
-<thead><tr><th>Week of</th><th>Miles</th><th>Runs</th><th>Load</th><th>Fitness</th><th>Fatigue</th><th>Z1</th><th>Z2</th><th>Z3</th><th>Z4</th><th>Z5</th></tr></thead>
+<thead><tr><th>Week of</th><th>Miles</th><th>Runs</th><th>Load</th><th>Long-term load</th><th>Recent load</th><th>Z1</th><th>Z2</th><th>Z3</th><th>Z4</th><th>Z5</th></tr></thead>
 <tbody>%%WEEK_ROWS%%</tbody></table></div></details></section>
 
 <section class="card about"><h2>How these are calculated</h2>
@@ -675,8 +677,8 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
       guide.setAttribute("x1", cx); guide.setAttribute("x2", cx); guide.removeAttribute("display");
       dots[0].setAttribute("cx", cx); dots[0].setAttribute("cy", f.Y(x.ctl)); dots[0].removeAttribute("display");
       dots[1].setAttribute("cx", cx); dots[1].setAttribute("cy", f.Y(x.atl)); dots[1].removeAttribute("display");
-      showTip("<b>" + fmtDate(x.d) + "</b>" + (x.load ? " · load " + x.load : "") + "<br>" + sw("--s1") + "Fitness " + x.ctl.toFixed(0) +
-        "<br>" + sw("--s2") + "Fatigue " + x.atl.toFixed(0) + "<br>Form " + (x.form > 0 ? "+" : "") + x.form.toFixed(0) +
+      showTip("<b>" + fmtDate(x.d) + "</b>" + (x.load ? " · load " + x.load : "") + "<br>" + sw("--s1") + "Long-term load " + x.ctl.toFixed(0) +
+        "<br>" + sw("--s2") + "Recent load " + x.atl.toFixed(0) + "<br>Form " + (x.form > 0 ? "+" : "") + x.form.toFixed(0) +
         " (" + (x.formPct > 0 ? "+" : "") + x.formPct.toFixed(0) + "% going in)", ev);
     });
     hit.addEventListener("pointerleave", function () { guide.setAttribute("display", "none"); dots.forEach(function (d) { d.setAttribute("display", "none"); }); hideTip(); });
