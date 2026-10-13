@@ -2,12 +2,14 @@
 
 Usage: python scripts/sync.py [oldest YYYY-MM-DD]
 """
-import base64, csv, json, sys, urllib.request
+import base64, csv, json, os, sys, urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-env = dict(l.split("=", 1) for l in (ROOT / ".env").read_text().split() if "=" in l)
+# key from .env locally, or from environment variables (GitHub Actions secret)
+env = dict(l.split("=", 1) for l in (ROOT / ".env").read_text().split() if "=" in l) if (ROOT / ".env").exists() else {}
+env = {**env, **{k: v for k in ("INTERVALS_API_KEY", "INTERVALS_ATHLETE_ID") if (v := os.environ.get(k))}}
 KEY, ATHLETE = env["INTERVALS_API_KEY"], env.get("INTERVALS_ATHLETE_ID", "0")
 HEADERS = {"Authorization": "Basic " + base64.b64encode(f"API_KEY:{KEY}".encode()).decode(),
            "User-Agent": "RunningCoach-sync/1.0"}  # intervals.icu rejects urllib's default UA

@@ -2,6 +2,8 @@
 
 Reads every .fit in data/fit/ (intervals.icu sync) and data/coros_export/ (COROS bulk
 export), de-duplicating by start time, so runs that never reached intervals.icu still count.
+The existing data/runs.csv and data/laps.csv are the permanent record: runs with no FIT file
+present (e.g., COROS-export-only runs when this runs on GitHub Actions) keep their old rows.
 
 Usage: python scripts/analyze.py   (run scripts/sync.py first)
 Writes data/laps.csv and data/runs.csv, prints rolling mileage.
@@ -119,6 +121,21 @@ def main():
                          *[f"{z:.0f}" for z in zpct],
                          round(s["ascent"] * FT_PER_M), len(hr), round(run_load(zs)),
                          *(lambda p, n: (round(p) if p else "", n))(*aet_pace(recs)), elev_avg, fid])
+
+    # keep rows for runs whose FIT file isn't here (the CSVs are the permanent record)
+    have = {(str(r[0]), r[1]) for r in run_rows}
+    for name, rows in (("runs.csv", run_rows), ("laps.csv", lap_rows)):
+        path = ROOT / "data" / name
+        if path.exists():
+            with open(path, newline="") as f:
+                kept = [r for r in list(csv.reader(f))[1:] if (r[0], r[1]) not in have]
+            rows += kept
+            if name == "runs.csv":
+                for r in kept:
+                    d = date.fromisoformat(r[0])
+                    daily[d] = daily.get(d, 0) + float(r[2])
+    run_rows.sort(key=lambda r: (str(r[0]), r[1]))
+    lap_rows.sort(key=lambda r: (str(r[0]), r[1], int(r[2])))
 
     with open(ROOT / "data" / "laps.csv", "w", newline="") as f:
         w = csv.writer(f)

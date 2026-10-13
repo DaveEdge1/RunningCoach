@@ -22,7 +22,9 @@ This folder is David's running log; Claude acts as his running coach.
 ## Publishing
 - GitHub repo DaveEdge1/RunningCoach (public), with Pages served from `docs/`.
 - `scripts/build_site.py` builds `docs/index.html` (calendar) and, via `scripts/fitness_page.py`, `docs/fitness.html` (Fitness tab: mileage, training load, pace at AeT, zones, VDOT) from `plan.csv` and `data/runs.csv`.
-- `bash scripts/update.sh` runs the sync, analysis, and site build, then commits and pushes.
+- A GitHub Action (`.github/workflows/update.yml`) does the same daily at 12:00 Arizona (19:00 UTC), using the `INTERVALS_API_KEY` / `INTERVALS_ATHLETE_ID` repo secrets. It downloads FIT files fresh and never commits them.
+- `bash scripts/update.sh` does it locally (pulls first, since the Action also commits). Use it after a COROS re-export or a manual FIT file, since those exist only on this PC.
+- `data/runs.csv` and `data/laps.csv` are the permanent record: `analyze.py` refreshes runs whose FIT it can see and keeps the other rows as they are.
 - When the plan changes, update both `plan.csv` (which drives the calendar) and `training-plan.md`.
 - Never commit `.env`, FIT files, `data/coros_export/`, or `data/activities.json` (they hold the API key and GPS tracks). `.gitignore` covers them.
 - Races and time trials for VDOT: any `races.csv` date or `plan.csv` row of type `race`, or a plan session that contains "time trial", on a day with a recorded run. Elevation comes from the run's FIT file (falling back to races.csv, then home).

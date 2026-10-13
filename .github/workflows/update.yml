@@ -1,0 +1,42 @@
+# Daily: pull new runs from intervals.icu, re-analyze, rebuild the site, and commit.
+# data/runs.csv and data/laps.csv are the permanent record; FIT files are downloaded
+# fresh on the runner and never committed.
+name: Daily update
+
+on:
+  schedule:
+    - cron: "0 19 * * *"  # 12:00 Arizona (UTC-7, no daylight saving)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/Phoenix
+      INTERVALS_API_KEY: ${{ secrets.INTERVALS_API_KEY }}
+      INTERVALS_ATHLETE_ID: ${{ secrets.INTERVALS_ATHLETE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install fitdecode==0.11.0
+      - run: python scripts/sync.py
+      - run: python scripts/analyze.py > /dev/null
+      - run: python scripts/build_site.py
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs data/runs.csv data/laps.csv log.csv
+          if git diff --cached --quiet; then echo "Nothing new to publish."; exit 0; fi
+          git commit -q -m "Update runs and calendar ($(date +%F))"
+          git pull -q --rebase
+          git push -q
