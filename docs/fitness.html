@@ -166,7 +166,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race (races.csv, or a planned race) or time trial (a planned session named "time trial"). The next-race estimate uses that current fitness with no projected gains. Elevation comes from the run's own file.</p>
 <p><b>Altitude</b> is converted two published ways and shown as a range. <a href="https://news.vdoto2.com/2011/03/ask-a-coach-how-do-you-adjust-threshold-pace-at-altitude/">Daniels</a>: paces slow 4–5 s/mi per 1,000 ft above 3,000 ft (15–18 s/mi at 7,000 ft). <a href="https://www.ustfccca.org/assets/ncaa-info/2009-outdoor-alt-adjust.pdf">NCAA 2009 altitude tables</a>: % added by venue altitude (0–7,703 ft) for the mile, 5K and 10K, interpolated by altitude and distance, and held at the nearest of those distances outside that span. Neither accounts for acclimatization.</p>
 </section>
-<footer>Updated Oct 12, 2026 19:52 MST.</footer>
+<footer>Updated Oct 12, 2026 21:17 MST.</footer>
 </main>
 <div id="tip"></div>
 <script>
@@ -279,10 +279,12 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   }
 
   function load() {
-    var mx = Math.max.apply(null, D.daily.map(function (x) { return Math.max(x.ctl, x.atl); }));
-    var step = nice(mx / 4), top = Math.ceil(mx / step) * step, ticks = [];
-    for (var v = 0; v <= top; v += step) ticks.push(v);
-    var f = frame("cLoad", x0, x1, 0, top, ticks, function (v) { return v; });
+    // y-axis fits the data (all dates, so it stays fixed while panning); lines don't need a zero baseline
+    var vals = D.daily.map(function (x) { return Math.max(x.ctl, x.atl); }), lows = D.daily.map(function (x) { return Math.min(x.ctl, x.atl); });
+    var mx = Math.max.apply(null, vals), mn = Math.min.apply(null, lows);
+    var step = nice((mx - mn) / 4), bot = Math.floor(mn / step) * step, top = Math.ceil(mx / step) * step, ticks = [];
+    for (var v = bot; v <= top; v += step) ticks.push(v);
+    var f = frame("cLoad", x0, x1, bot, top, ticks, function (v) { return v; });
     monthTicks(f, x0, x1);
     [["atl", "--s2"], ["ctl", "--s1"]].forEach(function (s) {
       var pts = D.daily.map(function (x) { return [day(x.d) + .5, x[s[0]]]; });

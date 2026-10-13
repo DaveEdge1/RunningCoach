@@ -652,10 +652,12 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   }
 
   function load() {
-    var mx = Math.max.apply(null, D.daily.map(function (x) { return Math.max(x.ctl, x.atl); }));
-    var step = nice(mx / 4), top = Math.ceil(mx / step) * step, ticks = [];
-    for (var v = 0; v <= top; v += step) ticks.push(v);
-    var f = frame("cLoad", x0, x1, 0, top, ticks, function (v) { return v; });
+    // y-axis fits the data (all dates, so it stays fixed while panning); lines don't need a zero baseline
+    var vals = D.daily.map(function (x) { return Math.max(x.ctl, x.atl); }), lows = D.daily.map(function (x) { return Math.min(x.ctl, x.atl); });
+    var mx = Math.max.apply(null, vals), mn = Math.min.apply(null, lows);
+    var step = nice((mx - mn) / 4), bot = Math.floor(mn / step) * step, top = Math.ceil(mx / step) * step, ticks = [];
+    for (var v = bot; v <= top; v += step) ticks.push(v);
+    var f = frame("cLoad", x0, x1, bot, top, ticks, function (v) { return v; });
     monthTicks(f, x0, x1);
     [["atl", "--s2"], ["ctl", "--s1"]].forEach(function (s) {
       var pts = D.daily.map(function (x) { return [day(x.d) + .5, x[s[0]]]; });
