@@ -9,3 +9,4 @@ data/activities.json
 *.fit
 
 __pycache__/
+data/update.log
