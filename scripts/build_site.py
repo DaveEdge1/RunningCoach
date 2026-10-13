@@ -83,22 +83,31 @@ def zone_bar(zones, total):
     return f'<span class="zbar" title="{title}">{segs}</span>'
 
 
-HIST_RANGE = (100, 190)   # bpm shown on every run's curve, so runs line up
+HIST_TAIL_SECS = 60            # trim each tail of the curve by up to this much time (dropouts, spikes)
 HIST_KERNEL = [1, 2, 3, 2, 1]  # triangular smoothing over 5 bpm
 
 
 def hr_curve(counts, W=420, H=64):
-    """Smoothed HR distribution as inline SVG: filled by zone, dashed AeT/LT lines, own-peak scaling."""
+    """Smoothed HR distribution as inline SVG: filled by zone, dashed AeT/LT lines, own-peak scaling,
+    x-axis trimmed to the run's own HR span."""
     if not counts:
         return ""
-    lo, hi = HIST_RANGE
-    c = [0] * (hi - lo + 1)
-    for b, n in counts.items():
-        c[min(hi, max(lo, b)) - lo] += n
+    def edge(bpms):  # first bpm, walking in from one end, where the time beyond it reaches the tail limit
+        acc = 0
+        for b in bpms:
+            acc += counts[b]
+            if acc >= HIST_TAIL_SECS:
+                return b
+        return bpms[-1]
+    lo, hi = edge(sorted(counts)), edge(sorted(counts, reverse=True))
+    lo, hi = min(lo, hi), max(lo, hi)
+    if hi - lo < 10:  # keep very narrow runs readable
+        mid = (lo + hi) // 2
+        lo, hi = mid - 5, mid + 5
     r = len(HIST_KERNEL) // 2
-    sm = [sum(k * c[i + j - r] for j, k in enumerate(HIST_KERNEL) if 0 <= i + j - r < len(c)) / sum(HIST_KERNEL)
-          for i in range(len(c))]
-    top, ph = max(sm) or 1, H - 14
+    sm = {b: sum(k * counts.get(b + j - r, 0) for j, k in enumerate(HIST_KERNEL)) / sum(HIST_KERNEL)
+          for b in range(lo, hi + 1)}
+    top, ph = max(sm.values()) or 1, H - 14
     X = lambda b: (b - lo) / (hi - lo) * W
     Y = lambda v: ph - v / top * (ph - 2)
     parts = []
@@ -107,21 +116,22 @@ def hr_curve(counts, W=420, H=64):
         if a >= b:
             continue
         mins = sum(n for bpm, n in counts.items() if zlo <= bpm < zhi) / 60
-        if mins < 0.05:
-            continue
         xs = [max(lo, a - .5)] + list(range(a, b)) + [min(hi, b - .5)]
-        val = lambda x: sm[min(len(sm) - 1, max(0, round(x) - lo))]
+        val = lambda x: sm[min(hi, max(lo, round(x)))]
         d = f"M{X(xs[0]):.1f},{ph} " + " ".join(f"L{X(x):.1f},{Y(val(x)):.1f}" for x in xs) + f" L{X(xs[-1]):.1f},{ph}Z"
-        parts.append(f'<path class="f{zi}" d="{d}"><title>{html.escape(name)} {html.escape(zone_range(zlo, zhi))}: {mins:.0f} min</title></path>')
+        parts.append(f'<path class="f{zi}" d="{d}"><title>{html.escape(name)} {html.escape(zone_range(zlo, zhi))}: '
+                     f'{mins:.0f} min</title></path>')
+    labels = [(0, str(lo), "start"), (W, str(hi), "end")]  # min/max always; threshold labels yield to them
     for v, lab in ((AET, f"AeT {AET}"), (LT, f"LT {LT}")):
-        parts.append(f'<line class="thr" x1="{X(v):.1f}" x2="{X(v):.1f}" y1="0" y2="{ph}"/>'
-                     f'<text x="{X(v):.1f}" y="{H - 2}" text-anchor="middle">{lab}</text>')
-    for v in range(lo + 20, hi + 1, 20):
-        if min(abs(v - AET), abs(v - LT)) > 8:
-            parts.append(f'<text x="{X(v):.1f}" y="{H - 2}" text-anchor="middle">{v}</text>')
+        if lo < v < hi:
+            parts.append(f'<line class="thr" x1="{X(v):.1f}" x2="{X(v):.1f}" y1="0" y2="{ph}"/>')
+            if all(abs(X(v) - lx) > 45 for lx, _, _ in labels):
+                labels.append((X(v), lab, "middle"))
+    parts += [f'<text x="{x:.1f}" y="{H - 2}" text-anchor="{a}">{t}</text>' for x, t, a in labels]
     total = sum(counts.values()) / 60
-    return (f'<svg class="hrc" viewBox="0 0 {W} {H}" role="img" aria-label="Heart rate distribution, {total:.0f} min">'
-            f'<line class="base" x1="0" x2="{W}" y1="{ph}" y2="{ph}"/>{"".join(parts)}</svg>')
+    return (f'<svg class="hrc" viewBox="0 0 {W} {H}" role="img" aria-label="Heart rate distribution, '
+            f'{lo}–{hi} bpm, {total:.0f} min"><line class="base" x1="0" x2="{W}" y1="{ph}" y2="{ph}"/>'
+            f'{"".join(parts)}</svg>')
 
 
 def zone_text(zones, total):
@@ -222,8 +232,6 @@ def week_day(d, plan, act):
     if a:
         body += f'<div class="act">{act_summary(a)} · {a["elev"]} ft'
         body += hr_curve(a["hist"]) or zone_bar(a["zones"], a["hr_secs"])
-        if a["hr_secs"]:
-            body += f'<div class="zts">{zone_text(a["zones"], a["hr_secs"])}</div>'
         body += "".join(laps_table(r) for r in a["runs"]) + "</div>"
     elif missed(d, plan):
         body += '<div class="act missed">not recorded</div>'
