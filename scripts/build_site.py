@@ -107,7 +107,9 @@ def zone_anchors():
 
 _grad_ids = itertools.count(1)
 M_PER_MI_ = 1609.344
-GAP_FLOOR = 12 * 60  # sec/mi at the bottom of every week-view GAP panel
+GAP_FLOOR = 12 * 60  # sec/mi at the bottom of every week-view GAP panel; slower points are drawn on it
+GAP_SMOOTH_SECS = 15  # +/- seconds of averaging for running GAP points
+WALK_PACE = 805      # sec/mi (~13:25); slower points are treated as walking
 
 
 def hr_color(bpm):
@@ -204,12 +206,18 @@ def run_trace(run, W=640):
     if not t or not any(t["hr"]):
         return ""
     n, b = len(t["hr"]), t["bin"]
-    # GAP: speed averaged over 3 bins (45 s) to calm terrain noise; pace shown faster-up
+    # GAP: running points are averaged over +/- GAP_SMOOTH_SECS with their running neighbors to calm
+    # barometer noise; walking points and the neighbors they separate (sprints between walks) stay raw
     sp = [M_PER_MI_ / g if g else None for g in t["gap"]]
+    running = [bool(pc) and pc < WALK_PACE for pc in t["pace"]]
+    r = GAP_SMOOTH_SECS // b
     gs = []
     for i in range(n):
-        w = [x for x in sp[max(0, i - 1):i + 2] if x]
-        gs.append(M_PER_MI_ / (sum(w) / len(w)) if w and sp[i] else None)
+        if not sp[i] or not running[i]:
+            gs.append(t["gap"][i])
+            continue
+        w = [sp[k] for k in range(max(0, i - r), min(n, i + r + 1)) if sp[k] and running[k]]
+        gs.append(M_PER_MI_ / (sum(w) / len(w)))
     hv = [h for h in t["hr"] if h]
     gv = sorted(g for g in gs if g)
     hlo, hhi = min(hv) - 3, max(hv) + 3
@@ -223,7 +231,7 @@ def run_trace(run, W=640):
     X = lambda i: ml + (i + .5) / n * pw
     Yh = lambda h: 4 + (hhi - h) / (hhi - hlo) * (H1 - 8)
     Yg = lambda g: top2 + 4 + (g - glo) / (ghi - glo) * (H2 - 8)
-    lone = [i for i, g in enumerate(gs) if g and (i == 0 or not gs[i - 1]) and (i == n - 1 or not gs[i + 1])]
+    shown = [min(g, ghi) if g else None for g in gs]  # slower than the floor (walks) is drawn on it
 
     def line(vals, Y):
         out, pen = [], "M"
@@ -264,8 +272,7 @@ def run_trace(run, W=640):
     for mm in range(0, int(mins) + 1, step):
         x = ml + mm * 60 / (n * b) * pw
         p.append(f'<text x="{x:.1f}" y="{H - 3}" text-anchor="middle">{mm}{" min" if mm == 0 else ""}</text>')
-    p.append(f'<path class="gl" clip-path="url(#{gid}c)" d="{line(gs, Yg)}"/>')
-    p += [f'<circle class="gd" clip-path="url(#{gid}c)" cx="{X(i):.1f}" cy="{Yg(gs[i]):.1f}" r="2.5"/>' for i in lone]
+    p.append(f'<path class="gl" clip-path="url(#{gid}c)" d="{line(shown, Yg)}"/>')
     p.append(f'<path class="hl" stroke="url(#{gid})" d="{line(t["hr"], Yh)}"/>')
     p.append(f'<line class="guide" y1="0" y2="{top2 + H2}" style="display:none"/>')
     enc = lambda vals: " ".join("-" if v is None else str(round(v)) for v in vals)
@@ -419,7 +426,7 @@ def main():
     nr = next_race()
     goal = (f'Next race: <b>{html.escape(nr["name"])}</b> · {nr["date"]:%a %b} {nr["date"].day}, {nr["date"].year}'
             ' · <span id="countdown"></span>') if nr else ""
-    subs = {"RACE_DATE": nr["date"].isoformat() if nr else "", "GOAL": goal,
+    subs = {"RACE_DATE": nr["date"].isoformat() if nr else "", "WALK": str(WALK_PACE), "GOAL": goal,
             "LEGEND": legend, "ZLEG": zleg, "MONTHS": "".join(months), "WEEKS": "".join(weeks),
             "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
             "BASE_CSS": BASE_CSS, "TABS": tabs("index.html")}
@@ -557,7 +564,6 @@ body.weekly #monthly, body:not(.weekly) #weekly { display: none; }
 .trace .pnl { fill: none; stroke: var(--line); }
 .trace .hl { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .trace .gl { fill: none; stroke: var(--s1); stroke-width: 1.5; stroke-linejoin: round; }
-.trace .gd { fill: var(--s1); }
 .trace .thr { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; opacity: .45; }
 .trace .lap { stroke: var(--muted); stroke-width: 1; opacity: .35; }
 .trace .guide { stroke: var(--ink); stroke-width: 1; opacity: .5; }
@@ -627,7 +633,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
       guide.setAttribute("x1", gx); guide.setAttribute("x2", gx); guide.style.display = "";
       var lap = 1; laps.forEach(function (c) { if (t >= c) lap++; });
       tip.innerHTML = "<b>" + mmss(t) + "</b> · lap " + lap + "<br>HR " + (hr[i] || "—") +
-        "<br>GAP " + (gap[i] ? mmss(gap[i]) + "/mi" : pace[i] ? "— (walking)" : "— (stopped)") + (pace[i] ? "<br>Pace " + mmss(pace[i]) + "/mi" : "");
+        "<br>GAP " + (gap[i] ? mmss(gap[i]) + "/mi" + (pace[i] >= %%WALK%% ? " (walking)" : "") : "— (stopped)") + (pace[i] ? "<br>Pace " + mmss(pace[i]) + "/mi" : "");
       tip.style.display = "block";
       var w = tip.offsetWidth, h = tip.offsetHeight, tx = ev.clientX + 14, ty = ev.clientY + 14;
       if (tx + w > innerWidth - 8) tx = ev.clientX - w - 14;

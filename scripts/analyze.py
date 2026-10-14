@@ -58,10 +58,9 @@ def aet_pace(recs):
     return M_PER_MI / speed_at_aet, n
 
 
-TRACE_BIN = 15         # seconds per point in data/trace.csv
+TRACE_BIN = 5          # seconds per point in data/trace.csv (fine enough for 8 s sprints)
 TRACE_ALT_SMOOTH = 5   # +/- seconds of altitude averaging (barometer noise)
 TRACE_GRADE_SPAN = 10  # grade at each second is taken over +/- this many seconds
-WALK_SPEED = 2.0       # m/s (~13:25/mi); slower seconds count as walking and are not grade-adjusted
 
 
 def minetti_cost(g):
@@ -72,9 +71,8 @@ def minetti_cost(g):
 
 def trace(recs):
     """Per TRACE_BIN seconds: mean HR, grade-adjusted pace and pace (sec/mi).
-    GAP is computed second by second (so short hills keep their grade) and only for running seconds;
-    walking seconds count at their actual speed. A bin that is mostly walking gets no GAP, and a
-    stopped bin gets neither pace."""
+    GAP is computed second by second so short hills keep their grade. Minetti's model is for running,
+    so GAP during walking is only an estimate. A stopped bin gets neither pace."""
     n = len(recs)
     alt, dist = [r[3] for r in recs], [r[2] for r in recs]
     sm = []
@@ -82,14 +80,13 @@ def trace(recs):
         w = [a for a in alt[max(0, k - TRACE_ALT_SMOOTH):k + TRACE_ALT_SMOOTH + 1] if a is not None]
         sm.append(sum(w) / len(w) if w else None)
     c0 = minetti_cost(0)
-    adj, walk = [], []  # per second: grade-adjusted speed, walking?
+    adj = []  # per second: grade-adjusted speed
     for k in range(n):
         v = recs[k][1] or 0
         a, b = max(0, k - TRACE_GRADE_SPAN), min(n - 1, k + TRACE_GRADE_SPAN)
         ok = None not in (sm[a], sm[b], dist[a], dist[b]) and dist[b] - dist[a] > 8
         g = (sm[b] - sm[a]) / (dist[b] - dist[a]) if ok else 0
-        walk.append(v < WALK_SPEED)
-        adj.append(v if v < WALK_SPEED else v * minetti_cost(g) / c0)
+        adj.append(v * minetti_cost(g) / c0)
     out = []
     for i in range(0, n, TRACE_BIN):
         j = min(n - 1, i + TRACE_BIN)
@@ -99,9 +96,8 @@ def trace(recs):
             v = (dist[j] - dist[i]) / (j - i)
             if v >= 1.0:  # slower than ~27 min/mi counts as stopped
                 pace_s = M_PER_MI / v
-                if sum(walk[i:j]) <= (j - i) / 2:
-                    gs = sum(adj[i:j]) / (j - i)
-                    gap = M_PER_MI / gs if gs > 0 else None
+                gs = sum(adj[i:j]) / (j - i)
+                gap = M_PER_MI / gs if gs > 0 else None
         out.append((round(sum(hr) / len(hr)) if hr else None, gap and round(gap), pace_s and round(pace_s)))
     return out
 
