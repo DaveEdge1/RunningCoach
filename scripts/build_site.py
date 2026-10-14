@@ -99,6 +99,32 @@ def zone_anchors():
 _grad_ids = itertools.count(1)
 
 
+def hr_color(bpm):
+    """Continuous zone color for a heart rate: CSS color-mix between the two nearest zone anchors."""
+    anc = zone_anchors()
+    if bpm <= anc[0]:
+        return "var(--z1)"
+    for i in range(1, len(anc)):
+        if bpm <= anc[i]:
+            t = (bpm - anc[i - 1]) / (anc[i] - anc[i - 1])
+            return f"color-mix(in srgb, var(--z{i + 1}) {100 * t:.0f}%, var(--z{i}))"
+    return f"var(--z{len(anc)})"
+
+
+def hr_bar(counts, zones, total, steps=20):
+    """Month view bar: the run's heart rates sorted low to high, left to right, in continuous color."""
+    if not counts:
+        return zone_bar(zones, total)
+    n, acc, stops, k = sum(counts.values()), 0, [], 0
+    for bpm in sorted(counts):  # color at the middle of each 1/steps slice of time
+        acc += counts[bpm]
+        while k < steps and acc >= (k + .5) / steps * n:
+            stops.append(f"{hr_color(bpm)} {100 * (k + .5) / steps:.1f}%")
+            k += 1
+    title = " · ".join(f"Z{i + 1} {100 * z / total:.0f}%" for i, z in enumerate(zones)) if total else ""
+    return f'<span class="zbar" title="{title}" style="background:linear-gradient(90deg, {", ".join(stops)})"></span>'
+
+
 def hr_curve(counts, W=420, H=64):
     """Smoothed HR distribution as inline SVG: filled by zone, dashed AeT/LT lines, own-peak scaling,
     x-axis trimmed to the run's own HR span."""
@@ -214,7 +240,7 @@ def month_cell(d, plan, act, month):
     if p:
         parts.append(plan_html(p))
     if a:
-        parts.append(f'<div class="act">{act_summary(a)}{zone_bar(a["zones"], a["hr_secs"])}</div>')
+        parts.append(f'<div class="act">{act_summary(a)}{hr_bar(a["hist"], a["zones"], a["hr_secs"])}</div>')
     elif missed(d, plan):
         parts.append('<div class="act missed">not recorded</div>')
     return f'<div class="{day_classes(d, plan, month)}" data-date="{d}">{"".join(parts)}</div>'
