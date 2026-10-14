@@ -9,11 +9,12 @@ Usage: python scripts/analyze.py   (run scripts/sync.py first)
 Writes data/laps.csv, data/runs.csv, data/hr_hist.csv (seconds at each bpm), and data/trace.csv
 (HR, grade-adjusted pace, and pace in 15 s bins; no location), prints rolling mileage.
 """
-import csv, warnings
+import bisect, csv, warnings
 from datetime import date, timedelta
 
 import fitdecode
 
+import elevation
 from config import AET, MANUAL_LOAD_PER_MIN, ROOT, TZ, ZONES
 
 warnings.filterwarnings("ignore", module="fitdecode")  # COROS files trip a harmless size warning
@@ -21,6 +22,7 @@ warnings.filterwarnings("ignore", module="fitdecode")  # COROS files trip a harm
 FIT_DIRS = [ROOT / "data" / "fit", ROOT / "data" / "coros_export"]
 MANUAL_LIST = ROOT / "data" / "manual_runs.txt"  # FIT ids of hand-made files (no real HR/GPS)
 M_PER_MI = 1609.344
+SEMICIRCLE = 180 / 2**31  # FIT position units to degrees
 FT_PER_M = 3.281
 
 # Aerobic efficiency: pace at AeT from steady, flat running in a narrow HR band around it
@@ -60,7 +62,8 @@ def aet_pace(recs):
 
 TRACE_BIN = 5          # seconds per point in data/trace.csv (fine enough for 8 s sprints)
 TRACE_ALT_SMOOTH = 5   # +/- seconds of altitude averaging (barometer noise)
-TRACE_GRADE_SPAN = 10  # grade at each second is taken over +/- this many seconds
+TRACE_GRADE_SPAN = 10  # barometer fallback: grade at each second is taken over +/- this many seconds
+GRADE_M = 10           # map elevation: grade at each point is taken over +/- this many meters of distance
 
 
 def minetti_cost(g):
@@ -69,12 +72,27 @@ def minetti_cost(g):
     return 155.4 * g**5 - 30.4 * g**4 - 43.3 * g**3 + 46.3 * g**2 + 19.5 * g + 3.6
 
 
-def trace(recs):
+def elev_at(prof):
+    """Linear interpolation of elevation (m) at a distance along the run, from [(dist, elev), ...]."""
+    ds = [d for d, _ in prof]
+    def f(x):
+        x = min(max(x, ds[0]), ds[-1])
+        i = bisect.bisect_right(ds, x)
+        if i >= len(ds):
+            return prof[-1][1]
+        (d0, e0), (d1, e1) = prof[i - 1], prof[i]
+        return e0 if d1 == d0 else e0 + (e1 - e0) * (x - d0) / (d1 - d0)
+    return f
+
+
+def trace(recs, prof=None):
     """Per TRACE_BIN seconds: mean HR, grade-adjusted pace and pace (sec/mi).
-    GAP is computed second by second so short hills keep their grade. Minetti's model is for running,
-    so GAP during walking is only an estimate. A stopped bin gets neither pace."""
+    GAP is computed second by second so short hills keep their grade. Grade comes from map elevation
+    along the track (prof, see elevation.py) when available, else from the barometer. Minetti's model is
+    for running, so GAP during walking is only an estimate. A stopped bin gets neither pace."""
     n = len(recs)
     alt, dist = [r[3] for r in recs], [r[2] for r in recs]
+    E = elev_at(prof) if prof else None
     sm = []
     for k in range(n):
         w = [a for a in alt[max(0, k - TRACE_ALT_SMOOTH):k + TRACE_ALT_SMOOTH + 1] if a is not None]
@@ -86,9 +104,12 @@ def trace(recs):
         # which pairs a sprint's top speed with the flat ground after the hill
         p, q = max(0, k - 1), min(n - 1, k + 1)
         v = (dist[q] - dist[p]) / (q - p) if None not in (dist[p], dist[q]) and q > p else 0
-        a, b = max(0, k - TRACE_GRADE_SPAN), min(n - 1, k + TRACE_GRADE_SPAN)
-        ok = None not in (sm[a], sm[b], dist[a], dist[b]) and dist[b] - dist[a] > 8
-        g = (sm[b] - sm[a]) / (dist[b] - dist[a]) if ok else 0
+        if E and dist[k] is not None:
+            g = (E(dist[k] + GRADE_M) - E(dist[k] - GRADE_M)) / (2 * GRADE_M)
+        else:
+            a, b = max(0, k - TRACE_GRADE_SPAN), min(n - 1, k + TRACE_GRADE_SPAN)
+            ok = None not in (sm[a], sm[b], dist[a], dist[b]) and dist[b] - dist[a] > 8
+            g = (sm[b] - sm[a]) / (dist[b] - dist[a]) if ok else 0
         adj.append(v * minetti_cost(g) / c0)
     out = []
     for i in range(0, n, TRACE_BIN):
@@ -113,9 +134,9 @@ def parse_fit(path):
                 continue
             g = lambda k: frame.get_value(k, fallback=None)
             if frame.name == "session":
-                session = {"start": g("start_time"), "sport": g("sport"),
-                           "dist": g("total_distance") or 0, "time": g("total_timer_time") or 0,
-                           "ascent": g("total_ascent") or 0}
+                session.update({"start": g("start_time"), "sport": g("sport"),
+                                "dist": g("total_distance") or 0, "time": g("total_timer_time") or 0,
+                                "ascent": g("total_ascent") or 0})
             elif frame.name == "lap":
                 laps.append({"dist": g("total_distance") or 0,
                              "time": g("total_timer_time") or g("total_elapsed_time") or 0,
@@ -125,6 +146,9 @@ def parse_fit(path):
             elif frame.name == "record":
                 recs.append((g("heart_rate"), g("enhanced_speed") or g("speed"), g("distance"),
                              g("enhanced_altitude") or g("altitude")))
+                lat, lon = g("position_lat"), g("position_long")  # semicircles; used only for map elevation
+                session.setdefault("pos", []).append((lat * SEMICIRCLE, lon * SEMICIRCLE)
+                                                     if None not in (lat, lon) else None)
     return session, laps, recs  # COROS records are 1 Hz, so record count ~ seconds
 
 
@@ -164,7 +188,8 @@ def main():
         for h in hr:
             counts[h] = counts.get(h, 0) + 1
         hist_rows.append([d, local.strftime("%H:%M"), " ".join(f"{b}:{c}" for b, c in sorted(counts.items()))])
-        tr = trace(recs)
+        prof = elevation.profile(fid, [r[2] for r in recs], s.get("pos", []))
+        tr = trace(recs, prof)
         trace_rows.append([d, local.strftime("%H:%M"), TRACE_BIN,
                            *(" ".join("-" if x is None else str(x) for x in col) for col in zip(*tr))])
         n = len(hr) or 1
@@ -210,6 +235,7 @@ def main():
         w.writerow(["date", "start", "bpm_secs"])  # "bpm:seconds" pairs
         w.writerows(hist_rows)
     trace_rows.sort(key=lambda r: (str(r[0]), r[1]))
+    elevation.save()
     with open(ROOT / "data" / "trace.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["date", "start", "bin_secs", "hr", "gap_secs", "pace_secs"])  # space-separated, "-" = none
