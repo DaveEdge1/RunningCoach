@@ -82,7 +82,10 @@ def trace(recs):
     c0 = minetti_cost(0)
     adj = []  # per second: grade-adjusted speed
     for k in range(n):
-        v = recs[k][1] or 0
+        # speed from distance: the FIT speed field lags distance (and so altitude) by ~6 s on this watch,
+        # which pairs a sprint's top speed with the flat ground after the hill
+        p, q = max(0, k - 1), min(n - 1, k + 1)
+        v = (dist[q] - dist[p]) / (q - p) if None not in (dist[p], dist[q]) and q > p else 0
         a, b = max(0, k - TRACE_GRADE_SPAN), min(n - 1, k + TRACE_GRADE_SPAN)
         ok = None not in (sm[a], sm[b], dist[a], dist[b]) and dist[b] - dist[a] > 8
         g = (sm[b] - sm[a]) / (dist[b] - dist[a]) if ok else 0
