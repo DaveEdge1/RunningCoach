@@ -107,6 +107,7 @@ def zone_anchors():
 
 _grad_ids = itertools.count(1)
 M_PER_MI_ = 1609.344
+GAP_FLOOR = 12 * 60  # sec/mi at the bottom of every week-view GAP panel
 
 
 def hr_color(bpm):
@@ -212,9 +213,8 @@ def run_trace(run, W=640):
     hv = [h for h in t["hr"] if h]
     gv = sorted(g for g in gs if g)
     hlo, hhi = min(hv) - 3, max(hv) + 3
-    glo = gv[int(.02 * (len(gv) - 1))] - 15 if gv else 400  # fastest shown (sec/mi)
-    # slowest shown: 95th percentile, but no more than 2 min/mi slower than the median, so walk breaks clip
-    ghi = min(gv[int(.95 * (len(gv) - 1))], gv[len(gv) // 2] + 120) + 15 if gv else 800
+    ghi = GAP_FLOOR  # slowest shown; anything slower runs off the bottom
+    glo = min(min(gv), ghi - 120) // 30 * 30 if gv else ghi - 240  # fastest point sets the top
     ml, mr = 40, 8
     H1, H2, gapy, axh = 78, 56, 10, 16
     top2 = H1 + gapy
@@ -223,6 +223,7 @@ def run_trace(run, W=640):
     X = lambda i: ml + (i + .5) / n * pw
     Yh = lambda h: 4 + (hhi - h) / (hhi - hlo) * (H1 - 8)
     Yg = lambda g: top2 + 4 + (g - glo) / (ghi - glo) * (H2 - 8)
+    lone = [i for i, g in enumerate(gs) if g and (i == 0 or not gs[i - 1]) and (i == n - 1 or not gs[i + 1])]
 
     def line(vals, Y):
         out, pen = [], "M"
@@ -246,9 +247,8 @@ def run_trace(run, W=640):
     p.append(f'<text class="pl" x="{ml + 4}" y="11">HR</text><text class="pl" x="{ml + 4}" y="{top2 + 11}">GAP /mi</text>')
     for v in (round(hlo + 3), round(hhi - 3)):
         p.append(f'<text x="{ml - 5}" y="{Yh(v) + 3:.1f}" text-anchor="end">{v}</text>')
-    if gv:
-        for v in (glo + 15, ghi - 15):
-            p.append(f'<text x="{ml - 5}" y="{Yg(v) + 3:.1f}" text-anchor="end">{_mmss(v)}</text>')
+    for v in (glo, ghi):
+        p.append(f'<text x="{ml - 5}" y="{Yg(v) + 3:.1f}" text-anchor="end">{_mmss(v)}</text>')
     for v, lab in ((AET, "AeT"), (LT, "LT")):
         if hlo < v < hhi:
             p.append(f'<line class="thr" x1="{ml}" x2="{W - mr}" y1="{Yh(v):.1f}" y2="{Yh(v):.1f}"/>'
@@ -265,6 +265,7 @@ def run_trace(run, W=640):
         x = ml + mm * 60 / (n * b) * pw
         p.append(f'<text x="{x:.1f}" y="{H - 3}" text-anchor="middle">{mm}{" min" if mm == 0 else ""}</text>')
     p.append(f'<path class="gl" clip-path="url(#{gid}c)" d="{line(gs, Yg)}"/>')
+    p += [f'<circle class="gd" clip-path="url(#{gid}c)" cx="{X(i):.1f}" cy="{Yg(gs[i]):.1f}" r="2.5"/>' for i in lone]
     p.append(f'<path class="hl" stroke="url(#{gid})" d="{line(t["hr"], Yh)}"/>')
     p.append(f'<line class="guide" y1="0" y2="{top2 + H2}" style="display:none"/>')
     enc = lambda vals: " ".join("-" if v is None else str(round(v)) for v in vals)
@@ -556,6 +557,7 @@ body.weekly #monthly, body:not(.weekly) #weekly { display: none; }
 .trace .pnl { fill: none; stroke: var(--line); }
 .trace .hl { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .trace .gl { fill: none; stroke: var(--s1); stroke-width: 1.5; stroke-linejoin: round; }
+.trace .gd { fill: var(--s1); }
 .trace .thr { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; opacity: .45; }
 .trace .lap { stroke: var(--muted); stroke-width: 1; opacity: .35; }
 .trace .guide { stroke: var(--ink); stroke-width: 1; opacity: .5; }
@@ -625,7 +627,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
       guide.setAttribute("x1", gx); guide.setAttribute("x2", gx); guide.style.display = "";
       var lap = 1; laps.forEach(function (c) { if (t >= c) lap++; });
       tip.innerHTML = "<b>" + mmss(t) + "</b> · lap " + lap + "<br>HR " + (hr[i] || "—") +
-        "<br>GAP " + (gap[i] ? mmss(gap[i]) + "/mi" : "stopped") + (pace[i] ? "<br>Pace " + mmss(pace[i]) + "/mi" : "");
+        "<br>GAP " + (gap[i] ? mmss(gap[i]) + "/mi" : pace[i] ? "— (walking)" : "— (stopped)") + (pace[i] ? "<br>Pace " + mmss(pace[i]) + "/mi" : "");
       tip.style.display = "block";
       var w = tip.offsetWidth, h = tip.offsetHeight, tx = ev.clientX + 14, ty = ev.clientY + 14;
       if (tx + w > innerWidth - 8) tx = ev.clientX - w - 14;
