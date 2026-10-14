@@ -2,7 +2,7 @@
 
 Usage: python scripts/build_site.py   (run scripts/analyze.py first)
 """
-import calendar, csv, html
+import calendar, csv, html, itertools
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
@@ -87,6 +87,18 @@ HIST_TAIL_SECS = 60            # trim each tail of the curve by up to this much 
 HIST_KERNEL = [1, 2, 3, 2, 1]  # triangular smoothing over 5 bpm
 
 
+def zone_anchors():
+    """bpm where each zone's color is pure: interior zones at their midpoint, the open-ended
+    first/last zones half a neighbor's width past the boundary. Colors blend in between."""
+    mids = [(lo + hi) / 2 for _, lo, hi in ZONES[1:-1]]
+    first = ZONES[1][1] - (ZONES[1][2] - ZONES[1][1]) / 2
+    last = ZONES[-1][1] + (ZONES[-2][2] - ZONES[-2][1]) / 2
+    return [first] + mids + [last]
+
+
+_grad_ids = itertools.count(1)
+
+
 def hr_curve(counts, W=420, H=64):
     """Smoothed HR distribution as inline SVG: filled by zone, dashed AeT/LT lines, own-peak scaling,
     x-axis trimmed to the run's own HR span."""
@@ -108,6 +120,7 @@ def hr_curve(counts, W=420, H=64):
     sm = {b: sum(k * counts.get(b + j - r, 0) for j, k in enumerate(HIST_KERNEL)) / sum(HIST_KERNEL)
           for b in range(lo, hi + 1)}
     top, ph = max(sm.values()) or 1, H - 14
+    gid = f"hrg{next(_grad_ids)}"
     X = lambda b: (b - lo) / (hi - lo) * W
     Y = lambda v: ph - v / top * (ph - 2)
     parts = []
@@ -119,8 +132,11 @@ def hr_curve(counts, W=420, H=64):
         xs = [max(lo, a - .5)] + list(range(a, b)) + [min(hi, b - .5)]
         val = lambda x: sm[min(hi, max(lo, round(x)))]
         d = f"M{X(xs[0]):.1f},{ph} " + " ".join(f"L{X(x):.1f},{Y(val(x)):.1f}" for x in xs) + f" L{X(xs[-1]):.1f},{ph}Z"
-        parts.append(f'<path class="f{zi}" d="{d}"><title>{html.escape(name)} {html.escape(zone_range(zlo, zhi))}: '
+        parts.append(f'<path class="hit" d="{d}"><title>{html.escape(name)} {html.escape(zone_range(zlo, zhi))}: '
                      f'{mins:.0f} min</title></path>')
+    # one continuous shape for the fill (the per-zone shapes above are invisible hover targets)
+    parts.insert(0, f'<path fill="url(#{gid})" d="M0,{ph} ' + " ".join(f"L{X(x):.1f},{Y(sm[x]):.1f}" for x in range(lo, hi + 1))
+                 + f' L{W},{ph}Z"/>')
     labels = [(0, str(lo), "start"), (W, str(hi), "end")]  # min/max always; threshold labels yield to them
     for v, lab in ((AET, f"AeT {AET}"), (LT, f"LT {LT}")):
         if lo < v < hi:
@@ -129,8 +145,13 @@ def hr_curve(counts, W=420, H=64):
                 labels.append((X(v), lab, "middle"))
     parts += [f'<text x="{x:.1f}" y="{H - 2}" text-anchor="{a}">{t}</text>' for x, t, a in labels]
     total = sum(counts.values()) / 60
+    anchors = zone_anchors()  # continuous color: gradient in bpm, positioned in this run's x scale
+    stops = "".join(f'<stop offset="{(b - anchors[0]) / (anchors[-1] - anchors[0]):.3f}" style="stop-color:var(--z{i})"/>'
+                    for i, b in enumerate(anchors, 1))
+    grad = (f'<defs><linearGradient id="{gid}" gradientUnits="userSpaceOnUse" x1="{X(anchors[0]):.1f}" y1="0" '
+            f'x2="{X(anchors[-1]):.1f}" y2="0">{stops}</linearGradient></defs>')
     return (f'<svg class="hrc" viewBox="0 0 {W} {H}" role="img" aria-label="Heart rate distribution, '
-            f'{lo}–{hi} bpm, {total:.0f} min"><line class="base" x1="0" x2="{W}" y1="{ph}" y2="{ph}"/>'
+            f'{lo}–{hi} bpm, {total:.0f} min">{grad}<line class="base" x1="0" x2="{W}" y1="{ph}" y2="{ph}"/>'
             f'{"".join(parts)}</svg>')
 
 
@@ -405,7 +426,7 @@ body.weekly #monthly, body:not(.weekly) #weekly { display: none; }
 .hrc text { font-size: 10px; fill: var(--muted); }
 .hrc .thr { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; opacity: .5; }
 .hrc .base { stroke: var(--line); }
-.hrc path:hover { opacity: .8; }
+.hrc .hit { fill: transparent; } .hrc .hit:hover { fill: var(--ink); fill-opacity: .12; }
 .f1 { fill: var(--z1); } .f2 { fill: var(--z2); } .f3 { fill: var(--z3); } .f4 { fill: var(--z4); } .f5 { fill: var(--z5); }
 details { margin-top: 6px; color: var(--ink); }
 summary { cursor: pointer; color: var(--muted); font-size: 12px; }
