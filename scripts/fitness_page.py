@@ -6,9 +6,10 @@ import csv, html, json, math, re
 from datetime import date, timedelta
 from pathlib import Path
 
-from analyze import EF_HR_BAND, EF_MAX_GRADE, EF_MIN_SECS
+from analyze import EF_HR_BAND, EF_MIN_SECS
 from build_site import BASE_CSS, tabs
-from config import (AET, DANIELS_FLOOR_FT, DANIELS_SPM, HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, ROOT,
+from config import (AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, DANIELS_FLOOR_FT, DANIELS_SPM, HARD_BOUT, HOME_ELEV_FT,
+                    HOME_NAME, LT, MANUAL_LOAD_PER_MIN, ROOT,
                     ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race,
                     zone_range)
 
@@ -392,8 +393,12 @@ def build(plan, built):
         f"History begins {first:%b} {first.day}, {first.year}, so both start at the average load of the first four weeks.</p>\n"
         "<p><b>Form</b> measures training fatigue only. Sleep, stress, heat, and illness aren't included, "
         "so read single runs with that in mind.</p>\n"
-        f"<p><b>Pace at AeT</b> uses only seconds with HR {EF_HR_BAND[0]}–{EF_HR_BAND[1]} bpm, moving faster than walking, "
-        f"on grades under {EF_MAX_GRADE:.0%}, scaled to exactly {AET} bpm. A run needs at least {EF_MIN_SECS // 60} minutes "
+        f"<p><b>Pace at AeT</b> uses grade-adjusted pace (Minetti et al. 2002) from seconds with HR {EF_HR_BAND[0]}–{EF_HR_BAND[1]} bpm, "
+        f"moving faster than walking, on grades under {AET_MAX_GRADE:.0%}, scaled to exactly {AET} bpm. It skips the first "
+        f"{AET_WARMUP_S // 60} minutes (warm-up), everything after {AET_MAX_S // 60} minutes (cardiac drift), and everything after a hard bout, "
+        f"when HR stays high for the rest of the run. A hard bout is {HARD_BOUT[0][1] // 60} minutes at {HARD_BOUT[0][0]} bpm or "
+        f"{HARD_BOUT[1][1] // 60} at {HARD_BOUT[1][0]}, on an exponential curve through those points "
+        f"(shorter the higher the HR), counted after the warm-up. A run needs at least {EF_MIN_SECS // 60} minutes "
         f"of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days, and each "
         f"point is drawn at the center of its window, so the line stops about {TREND_DAYS // 2} days short of today. "
         f"Only runs within {EF_ELEV_TOL_FT:,} ft of {HOME_NAME} ({HOME_ELEV_FT:,} ft) count, so the number is a "
@@ -521,7 +526,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 </section>
 
 <section class="card"><h2>Aerobic efficiency: pace at %%AET%% bpm, at %%HOME_ELEV%% ft</h2>
-<p class="note">Estimated from steady, flat running near AeT. Faster is up. Dots are single runs, colored by form going into that day, so a slow dot on a tired day isn't a sign of lost fitness.</p>
+<p class="note">Estimated from grade-adjusted easy running near AeT, after the warm-up and before any hard effort. Faster is up. Dots are single runs, colored by form going into that day, so a slow dot on a tired day isn't a sign of lost fitness.</p>
 <div class="chart" id="cEff"></div>
 <div class="legend"><span><span class="ln" style="background:var(--s7)"></span>%%TREND_DAYS%%-day trend</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span></div>
 </section>

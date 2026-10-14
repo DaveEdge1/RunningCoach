@@ -22,6 +22,18 @@ ZONES = [("Z1 Recovery", 0, AET - 10), ("Z2 Aerobic", AET - 10, AET),
          ("Z3 Tempo", AET, LT - 10), ("Z4 Threshold", LT - 10, LT), ("Z5 >LT", LT, 999)]
 ZONE_NAMES = [z[0] for z in ZONES]
 
+# Pace at AeT: which seconds of a run count (see analyze.aet_pace)
+AET_WARMUP_S = _cfg["aet_pace"]["warmup_min"] * 60
+AET_MAX_S = _cfg["aet_pace"]["max_min"] * 60
+AET_MAX_GRADE = _cfg["aet_pace"]["max_grade_pct"] / 100
+HARD_BOUT = [(bpm, mins * 60) for bpm, mins in _cfg["aet_pace"]["hard_bout_minutes_at_bpm"]]
+
+
+def hard_bout_secs(hr):
+    """Seconds at this HR that make a hard bout: exponential through the two config points, none below the first."""
+    (h1, t1), (h2, t2) = HARD_BOUT
+    return None if hr < h1 else t1 * (t2 / t1) ** ((hr - h1) / (h2 - h1))
+
 
 def zone_range(lo, hi):
     return f"<{hi}" if lo == 0 else f"{lo}+" if hi >= 999 else f"{lo}–{hi - 1}"

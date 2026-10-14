@@ -17,5 +17,11 @@
     ],
     "ncaa_table": "data/ref/ncaa_altitude_2009.csv"
   },
-  "manual_run_load_per_min": 2.5
+  "manual_run_load_per_min": 2.5,
+  "aet_pace": {
+    "warmup_min": 10,
+    "hard_bout_minutes_at_bpm": [[150, 4], [160, 2]],
+    "max_min": 90,
+    "max_grade_pct": 5
+  }
 }

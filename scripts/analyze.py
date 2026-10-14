@@ -15,7 +15,8 @@ from datetime import date, timedelta
 import fitdecode
 
 import elevation
-from config import AET, MANUAL_LOAD_PER_MIN, ROOT, TZ, ZONES
+from config import (AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, MANUAL_LOAD_PER_MIN, ROOT, TZ, ZONES,
+                    hard_bout_secs)
 
 warnings.filterwarnings("ignore", module="fitdecode")  # COROS files trip a harmless size warning
 
@@ -25,10 +26,9 @@ M_PER_MI = 1609.344
 SEMICIRCLE = 180 / 2**31  # FIT position units to degrees
 FT_PER_M = 3.281
 
-# Aerobic efficiency: pace at AeT from steady, flat running in a narrow HR band around it
+# Aerobic efficiency: pace at AeT from grade-adjusted easy running in a narrow HR band around it
 EF_HR_BAND = (AET - 7, AET + 7)
-EF_WINDOW = 30         # seconds over which grade is measured
-EF_MAX_GRADE = 0.02
+EF_WINDOW = 30         # seconds over which grade is averaged
 EF_MIN_SECS = 240
 
 
@@ -42,22 +42,6 @@ def pace(sec, meters):
 def run_load(zone_secs):
     """Zone-weighted TRIMP (Edwards-style): minutes in zone N count N times."""
     return sum((i + 1) * z for i, z in enumerate(zone_secs)) / 60
-
-
-def aet_pace(recs):
-    """Pace (sec/mi) at AeT HR, scaled from speed/HR on steady flat seconds; None if too little data."""
-    n = v_sum = hr_sum = 0
-    lo, hi = EF_HR_BAND
-    for (hr, v, d, a), (_, _, d0, a0) in zip(recs[EF_WINDOW:], recs):
-        if None in (hr, v, d, a, d0, a0) or v < 2.0 or not lo <= hr <= hi:
-            continue
-        if d - d0 < 40 or abs((a - a0) / (d - d0)) > EF_MAX_GRADE:
-            continue
-        n, v_sum, hr_sum = n + 1, v_sum + v, hr_sum + hr
-    if n < EF_MIN_SECS:
-        return None, n
-    speed_at_aet = (v_sum / n) / (hr_sum / n) * AET
-    return M_PER_MI / speed_at_aet, n
 
 
 TRACE_BIN = 5          # seconds per point in data/trace.csv (fine enough for 8 s sprints)
@@ -85,11 +69,11 @@ def elev_at(prof):
     return f
 
 
-def trace(recs, prof=None):
-    """Per TRACE_BIN seconds: mean HR, grade-adjusted pace and pace (sec/mi).
-    GAP is computed second by second so short hills keep their grade. Grade comes from map elevation
-    along the track (prof, see elevation.py) when available, else from the barometer. Minetti's model is
-    for running, so GAP during walking is only an estimate. A stopped bin gets neither pace."""
+def grade_adjust(recs, prof=None):
+    """Per second: (grade, grade-adjusted speed m/s) via Minetti's cost curve.
+    Grade comes from map elevation along the track (prof, see elevation.py) when available, else from the barometer.
+    Speed comes from distance: the FIT speed field lags distance (and so altitude) by ~6 s on this watch,
+    which pairs a sprint's top speed with the flat ground after the hill."""
     n = len(recs)
     alt, dist = [r[3] for r in recs], [r[2] for r in recs]
     E = elev_at(prof) if prof else None
@@ -98,10 +82,8 @@ def trace(recs, prof=None):
         w = [a for a in alt[max(0, k - TRACE_ALT_SMOOTH):k + TRACE_ALT_SMOOTH + 1] if a is not None]
         sm.append(sum(w) / len(w) if w else None)
     c0 = minetti_cost(0)
-    adj = []  # per second: grade-adjusted speed
+    out = []
     for k in range(n):
-        # speed from distance: the FIT speed field lags distance (and so altitude) by ~6 s on this watch,
-        # which pairs a sprint's top speed with the flat ground after the hill
         p, q = max(0, k - 1), min(n - 1, k + 1)
         v = (dist[q] - dist[p]) / (q - p) if None not in (dist[p], dist[q]) and q > p else 0
         if E and dist[k] is not None:
@@ -110,7 +92,49 @@ def trace(recs, prof=None):
             a, b = max(0, k - TRACE_GRADE_SPAN), min(n - 1, k + TRACE_GRADE_SPAN)
             ok = None not in (sm[a], sm[b], dist[a], dist[b]) and dist[b] - dist[a] > 8
             g = (sm[b] - sm[a]) / (dist[b] - dist[a]) if ok else 0
-        adj.append(v * minetti_cost(g) / c0)
+        out.append((g, v * minetti_cost(g) / c0))
+    return out
+
+
+def hard_bout_start(recs):
+    """Second at which a hard bout is complete, counted after the warm-up: each second at HR h adds
+    1 / hard_bout_secs(h) (config: e.g., 4 min at 150 or 2 min at 160) until the sum reaches 1. None if never."""
+    dose = 0
+    for k in range(AET_WARMUP_S, len(recs)):
+        t = recs[k][0] and hard_bout_secs(recs[k][0])
+        dose += 1 / t if t else 0
+        if dose >= 1:
+            return k
+    return None
+
+
+def aet_pace(recs, ga):
+    """Pace (sec/mi) at AeT HR, scaled from grade-adjusted speed / HR; None if too little data.
+    Counts seconds after the warm-up, before any hard bout, within the first AET_MAX_S (cardiac drift),
+    in the HR band, running (>= 2 m/s grade-adjusted), on grades under AET_MAX_GRADE averaged over EF_WINDOW s."""
+    n = v_sum = hr_sum = 0
+    lo, hi = EF_HR_BAND
+    end = min(len(recs), AET_MAX_S, hard_bout_start(recs) or len(recs))
+    for k in range(max(AET_WARMUP_S, EF_WINDOW), end):
+        hr, v = recs[k][0], ga[k][1]
+        if not hr or not lo <= hr <= hi or v < 2.0:
+            continue
+        if abs(sum(g for g, _ in ga[k - EF_WINDOW:k]) / EF_WINDOW) > AET_MAX_GRADE:
+            continue
+        n, v_sum, hr_sum = n + 1, v_sum + v, hr_sum + hr
+    if n < EF_MIN_SECS:
+        return None, n
+    speed_at_aet = (v_sum / n) / (hr_sum / n) * AET
+    return M_PER_MI / speed_at_aet, n
+
+
+def trace(recs, ga):
+    """Per TRACE_BIN seconds: mean HR, grade-adjusted pace and pace (sec/mi), from grade_adjust's ga.
+    GAP is computed second by second so short hills keep their grade. Minetti's model is
+    for running, so GAP during walking is only an estimate. A stopped bin gets neither pace."""
+    n = len(recs)
+    dist = [r[2] for r in recs]
+    adj = [v for _, v in ga]
     out = []
     for i in range(0, n, TRACE_BIN):
         j = min(n - 1, i + TRACE_BIN)
@@ -189,7 +213,8 @@ def main():
             counts[h] = counts.get(h, 0) + 1
         hist_rows.append([d, local.strftime("%H:%M"), " ".join(f"{b}:{c}" for b, c in sorted(counts.items()))])
         prof = elevation.profile(fid, [r[2] for r in recs], s.get("pos", []))
-        tr = trace(recs, prof)
+        ga = grade_adjust(recs, prof)
+        tr = trace(recs, ga)
         trace_rows.append([d, local.strftime("%H:%M"), TRACE_BIN,
                            *(" ".join("-" if x is None else str(x) for x in col) for col in zip(*tr))])
         n = len(hr) or 1
@@ -200,7 +225,7 @@ def main():
                          pace(s["time"], s["dist"]), round(sum(hr) / n) if hr else "", len(laps),
                          *[f"{z:.0f}" for z in zpct],
                          round(s["ascent"] * FT_PER_M), len(hr), round(run_load(zs)),
-                         *(lambda p, n: (round(p) if p else "", n))(*aet_pace(recs)), elev_avg, fid])
+                         *(lambda p, n: (round(p) if p else "", n))(*aet_pace(recs, ga)), elev_avg, fid])
 
     # The CSVs are the permanent record. Keep a run's old rows when the FIT file they came from
     # isn't here (COROS-export-only runs, or a hand-added file intervals.icu also has a copy of),
