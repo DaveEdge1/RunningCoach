@@ -2,7 +2,7 @@
 
 Edit config.json (not the scripts) when thresholds, home, or the time zone change; races go in races.csv.
 """
-import csv, json, math
+import csv, json, math, re
 from datetime import date
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -64,6 +64,19 @@ def _race(r):
     return {"date": date.fromisoformat(r["date"]), "name": r["name"], "location": r["location"],
             "meters": meters, "elev": int(r["elevation_ft"]) if r["elevation_ft"] else None,
             "notes": r["course_notes"], "goal_secs": goal, "goal_from": "time" if gt else "pace" if gp else None}
+
+
+def trail_days():
+    """Dates (ISO strings) whose line in notes.md mentions "trail"."""
+    path = ROOT / "notes.md"
+    if not path.exists():
+        return set()
+    out = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"-\s*(\d{4}-\d{2}-\d{2})(?:\s+\d{1,2}:\d{2})?\s*:(.*)", line.strip())
+        if m and re.search(r"\btrail\b", m.group(2), re.I):
+            out.add(m.group(1))
+    return out
 
 
 def load_races():

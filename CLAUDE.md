@@ -11,7 +11,7 @@ This folder is David's running log; Claude acts as his running coach.
 - `config.json` holds the athlete settings the scripts use: time zone, home (name, elevation), HR thresholds (AeT/LT/max), altitude methods (Daniels s/mi per 1,000 ft above a floor; path to the NCAA table), and load for manual runs. When a threshold changes, edit config.json only; zones, labels, and method notes are derived from it.
 - `races.csv` lists races (date, name, location, distance, elevation, course notes). The next upcoming row is the "next race" on both pages. Add new races here.
 - Altitude conversions use two published methods, shown as a range (`scripts/config.py` `convert_time`): Daniels and the NCAA 2009 tables. Sources are in `data/ref/README.md`. Don't invent altitude factors.
-- `profile.md`: narrative profile (goals, races, injury history). `notes.md`: subjective notes per run.
+- `profile.md`: narrative profile (goals, races, injury history). `notes.md`: subjective notes per run (`- YYYY-MM-DD: note`); a note saying "trail" keeps that run out of the pace-at-AeT trend.
 
 ## Context
 - Lives in Flagstaff, AZ (~7,000 ft). Factor altitude into pace and HR interpretation.
