@@ -37,6 +37,13 @@ def load_actuals():
             laps[(r["date"], r["start"])].append(r)
     days = defaultdict(lambda: {"miles": 0.0, "secs": 0, "hr_secs": 0, "hr_sum": 0, "elev": 0,
                                 "zones": [0.0] * len(ZONE_COLS), "runs": [], "manual": False, "hist": {}})
+    traces = {}
+    if (ROOT / "data" / "trace.csv").exists():
+        with open(ROOT / "data" / "trace.csv", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                col = lambda k: [None if x == "-" else int(x) for x in r[k].split()]
+                traces[(r["date"], r["start"])] = {"bin": int(r["bin_secs"]), "hr": col("hr"),
+                                                   "gap": col("gap_secs"), "pace": col("pace_secs")}
     hist = {}
     if (ROOT / "data" / "hr_hist.csv").exists():
         with open(ROOT / "data" / "hr_hist.csv", encoding="utf-8") as f:
@@ -50,7 +57,9 @@ def load_actuals():
             d["miles"] += mi
             d["secs"] += secs(r["pace"]) * mi
             d["elev"] += int(r["elev_ft"] or 0)
-            d["runs"].append({**r, "laps": laps.get((r["date"], r["start"]), [])})
+            d["runs"].append({**r, "laps": laps.get((r["date"], r["start"]), []),
+                              "trace": traces.get((r["date"], r["start"]))})
+            d["load"] = d.get("load", 0) + int(r["load"] or 0)
             if r["fit"].endswith("(manual)"):
                 d["manual"] = True
             elif r["hr_secs"]:
@@ -97,6 +106,7 @@ def zone_anchors():
 
 
 _grad_ids = itertools.count(1)
+M_PER_MI_ = 1609.344
 
 
 def hr_color(bpm):
@@ -125,7 +135,7 @@ def hr_bar(counts, zones, total, steps=20):
     return f'<span class="zbar" title="{title}" style="background:linear-gradient(90deg, {", ".join(stops)})"></span>'
 
 
-def hr_curve(counts, W=420, H=64):
+def hr_curve(counts, W=420, H=64, compact=False):
     """Smoothed HR distribution as inline SVG: filled by zone, dashed AeT/LT lines, own-peak scaling,
     x-axis trimmed to the run's own HR span."""
     if not counts:
@@ -145,7 +155,7 @@ def hr_curve(counts, W=420, H=64):
     r = len(HIST_KERNEL) // 2
     sm = {b: sum(k * counts.get(b + j - r, 0) for j, k in enumerate(HIST_KERNEL)) / sum(HIST_KERNEL)
           for b in range(lo, hi + 1)}
-    top, ph = max(sm.values()) or 1, H - 14
+    top, ph = max(sm.values()) or 1, H - (0 if compact else 14)
     gid = f"hrg{next(_grad_ids)}"
     X = lambda b: (b - lo) / (hi - lo) * W
     Y = lambda v: ph - v / top * (ph - 2)
@@ -169,7 +179,8 @@ def hr_curve(counts, W=420, H=64):
             parts.append(f'<line class="thr" x1="{X(v):.1f}" x2="{X(v):.1f}" y1="0" y2="{ph}"/>')
             if all(abs(X(v) - lx) > 45 for lx, _, _ in labels):
                 labels.append((X(v), lab, "middle"))
-    parts += [f'<text x="{x:.1f}" y="{H - 2}" text-anchor="{a}">{t}</text>' for x, t, a in labels]
+    if not compact:
+        parts += [f'<text x="{x:.1f}" y="{H - 2}" text-anchor="{a}">{t}</text>' for x, t, a in labels]
     total = sum(counts.values()) / 60
     anchors = zone_anchors()  # continuous color: gradient in bpm, positioned in this run's x scale
     stops = "".join(f'<stop offset="{(b - anchors[0]) / (anchors[-1] - anchors[0]):.3f}" style="stop-color:var(--z{i})"/>'
@@ -179,6 +190,88 @@ def hr_curve(counts, W=420, H=64):
     return (f'<svg class="hrc" viewBox="0 0 {W} {H}" role="img" aria-label="Heart rate distribution, '
             f'{lo}–{hi} bpm, {total:.0f} min">{grad}<line class="base" x1="0" x2="{W}" y1="{ph}" y2="{ph}"/>'
             f'{"".join(parts)}</svg>')
+
+
+def _mmss(sec):
+    return f"{int(sec) // 60}:{int(sec) % 60:02d}"
+
+
+def run_trace(run, W=640):
+    """HR and grade-adjusted pace vs time as two stacked panels sharing the time axis, with lap boundaries.
+    Hover data rides on data- attributes for the page script."""
+    t = run.get("trace")
+    if not t or not any(t["hr"]):
+        return ""
+    n, b = len(t["hr"]), t["bin"]
+    # GAP: speed averaged over 3 bins (45 s) to calm terrain noise; pace shown faster-up
+    sp = [M_PER_MI_ / g if g else None for g in t["gap"]]
+    gs = []
+    for i in range(n):
+        w = [x for x in sp[max(0, i - 1):i + 2] if x]
+        gs.append(M_PER_MI_ / (sum(w) / len(w)) if w and sp[i] else None)
+    hv = [h for h in t["hr"] if h]
+    gv = sorted(g for g in gs if g)
+    hlo, hhi = min(hv) - 3, max(hv) + 3
+    glo = gv[int(.02 * (len(gv) - 1))] - 15 if gv else 400  # fastest shown (sec/mi)
+    # slowest shown: 95th percentile, but no more than 2 min/mi slower than the median, so walk breaks clip
+    ghi = min(gv[int(.95 * (len(gv) - 1))], gv[len(gv) // 2] + 120) + 15 if gv else 800
+    ml, mr = 40, 8
+    H1, H2, gapy, axh = 78, 56, 10, 16
+    top2 = H1 + gapy
+    H = top2 + H2 + axh
+    pw = W - ml - mr
+    X = lambda i: ml + (i + .5) / n * pw
+    Yh = lambda h: 4 + (hhi - h) / (hhi - hlo) * (H1 - 8)
+    Yg = lambda g: top2 + 4 + (g - glo) / (ghi - glo) * (H2 - 8)
+
+    def line(vals, Y):
+        out, pen = [], "M"
+        for i, v in enumerate(vals):
+            if v is None:
+                pen = "M"
+                continue
+            out.append(f"{pen}{X(i):.1f},{Y(v):.1f}")
+            pen = "L"
+        return " ".join(out)
+
+    gid = f"trg{next(_grad_ids)}"
+    anc = zone_anchors()
+    stops = "".join(f'<stop offset="{(bpm - anc[0]) / (anc[-1] - anc[0]):.3f}" style="stop-color:var(--z{i})"/>'
+                    for i, bpm in enumerate(anc, 1))
+    p = [f'<defs><linearGradient id="{gid}" gradientUnits="userSpaceOnUse" x1="0" y1="{Yh(anc[0]):.1f}" x2="0" '
+         f'y2="{Yh(anc[-1]):.1f}">{stops}</linearGradient>'
+         f'<clipPath id="{gid}c"><rect x="{ml}" y="{top2}" width="{pw}" height="{H2}"/></clipPath></defs>']
+    for y0, h in ((0, H1), (top2, H2)):
+        p.append(f'<rect class="pnl" x="{ml}" y="{y0}" width="{pw}" height="{h}"/>')
+    p.append(f'<text class="pl" x="{ml + 4}" y="11">HR</text><text class="pl" x="{ml + 4}" y="{top2 + 11}">GAP /mi</text>')
+    for v in (round(hlo + 3), round(hhi - 3)):
+        p.append(f'<text x="{ml - 5}" y="{Yh(v) + 3:.1f}" text-anchor="end">{v}</text>')
+    if gv:
+        for v in (glo + 15, ghi - 15):
+            p.append(f'<text x="{ml - 5}" y="{Yg(v) + 3:.1f}" text-anchor="end">{_mmss(v)}</text>')
+    for v, lab in ((AET, "AeT"), (LT, "LT")):
+        if hlo < v < hhi:
+            p.append(f'<line class="thr" x1="{ml}" x2="{W - mr}" y1="{Yh(v):.1f}" y2="{Yh(v):.1f}"/>'
+                     f'<text x="{W - mr - 3}" y="{Yh(v) - 3:.1f}" text-anchor="end">{lab} {v}</text>')
+    cum, lap_marks = 0, []
+    for l in run["laps"][:-1]:
+        cum += int(l["secs"])
+        x = ml + cum / (n * b) * pw
+        lap_marks.append(cum)
+        p.append(f'<line class="lap" x1="{x:.1f}" x2="{x:.1f}" y1="0" y2="{top2 + H2}"/>')
+    mins = n * b / 60
+    step = 10 if mins <= 90 else 20
+    for mm in range(0, int(mins) + 1, step):
+        x = ml + mm * 60 / (n * b) * pw
+        p.append(f'<text x="{x:.1f}" y="{H - 3}" text-anchor="middle">{mm}{" min" if mm == 0 else ""}</text>')
+    p.append(f'<path class="gl" clip-path="url(#{gid}c)" d="{line(gs, Yg)}"/>')
+    p.append(f'<path class="hl" stroke="url(#{gid})" d="{line(t["hr"], Yh)}"/>')
+    p.append(f'<line class="guide" y1="0" y2="{top2 + H2}" style="display:none"/>')
+    enc = lambda vals: " ".join("-" if v is None else str(round(v)) for v in vals)
+    data = (f'data-bin="{b}" data-hr="{enc(t["hr"])}" data-gap="{enc(gs)}" data-pace="{enc(t["pace"])}" '
+            f'data-laps="{" ".join(map(str, lap_marks))}" data-l="{ml}" data-pw="{pw}"')
+    return (f'<svg class="trace" viewBox="0 0 {W} {H}" {data} role="img" '
+            f'aria-label="Heart rate and grade-adjusted pace over {mins:.0f} min">{"".join(p)}</svg>')
 
 
 def zone_text(zones, total):
@@ -194,11 +287,13 @@ def plan_html(p):
             f'{f" <b>{fmt_mi(mi)}</b> mi" if mi else ""}{sess}</div>')
 
 
-def act_summary(a):
+def act_summary(a, load=False):
     hr = round(a["hr_sum"] / a["hr_secs"]) if a["hr_secs"] else None
     bits = [f'<b>{fmt_mi(round(a["miles"], 1))}</b> mi', fmt_pace(a["secs"], a["miles"])]
     if hr:
         bits.append(f"{hr} bpm")
+    if load and a.get("load"):
+        bits.append(f'load {a["load"]}')
     if a["manual"]:
         bits.append("no HR")
     return "✓ " + " · ".join(b for b in bits if b)
@@ -240,7 +335,7 @@ def month_cell(d, plan, act, month):
     if p:
         parts.append(plan_html(p))
     if a:
-        parts.append(f'<div class="act">{act_summary(a)}{hr_bar(a["hist"], a["zones"], a["hr_secs"])}</div>')
+        parts.append(f'<div class="act">{act_summary(a)}{hr_curve(a["hist"], W=150, H=26, compact=True) or zone_bar(a["zones"], a["hr_secs"])}</div>')
     elif missed(d, plan):
         parts.append('<div class="act missed">not recorded</div>')
     return f'<div class="{day_classes(d, plan, month)}" data-date="{d}">{"".join(parts)}</div>'
@@ -277,8 +372,9 @@ def week_day(d, plan, act):
     p, a = plan.get(d), act.get(d)
     body = plan_html(p) if p else '<div class="plan none">—</div>'
     if a:
-        body += f'<div class="act">{act_summary(a)} · {a["elev"]} ft'
-        body += hr_curve(a["hist"]) or zone_bar(a["zones"], a["hr_secs"])
+        body += f'<div class="act">{act_summary(a, load=True)} · {a["elev"]} ft'
+        charts = "".join(run_trace(r) for r in a["runs"])
+        body += charts or zone_bar(a["zones"], a["hr_secs"])
         body += "".join(laps_table(r) for r in a["runs"]) + "</div>"
     elif missed(d, plan):
         body += '<div class="act missed">not recorded</div>'
@@ -296,6 +392,8 @@ def week_html(wk0, plan, act, start):
     label = f"Plan week {n} · " if start and start <= wk0 <= max(plan) else ""
     end = wk[-1]
     zsum = f'<div class="zts">{zone_text(zones, hr_total)}</div>' if hr_total else ""
+    wload = sum(act[d].get("load", 0) for d in wk if d in act)
+    zsum = (f'<div class="zts">load {wload}</div>' if wload else "") + zsum
     head = (f'<div class="whead"><h2>{label}{wk0:%b} {wk0.day} – {end:%b} {end.day}</h2>'
             f'<div class="wsum">{total_html(pm, am, wk0)}{zsum}</div></div>')
     return (f'<section class="wview" data-week="{wk0}" hidden>{head}'
@@ -452,6 +550,18 @@ body.weekly #monthly, body:not(.weekly) #weekly { display: none; }
 .hrc text { font-size: 10px; fill: var(--muted); }
 .hrc .thr { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; opacity: .5; }
 .hrc .base { stroke: var(--line); }
+.trace { display: block; width: 100%; max-width: 640px; height: auto; margin-top: 8px; touch-action: pan-y; }
+.trace text { font-size: 10px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.trace .pl { font-weight: 600; fill: var(--ink); opacity: .7; }
+.trace .pnl { fill: none; stroke: var(--line); }
+.trace .hl { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trace .gl { fill: none; stroke: var(--s1); stroke-width: 1.5; stroke-linejoin: round; }
+.trace .thr { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; opacity: .45; }
+.trace .lap { stroke: var(--muted); stroke-width: 1; opacity: .35; }
+.trace .guide { stroke: var(--ink); stroke-width: 1; opacity: .5; }
+.ttip { position: fixed; z-index: 20; pointer-events: none; background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; line-height: 1.45;
+  box-shadow: 0 4px 14px rgba(0,0,0,.18); font-variant-numeric: tabular-nums; display: none; }
 .hrc .hit { fill: transparent; } .hrc .hit:hover { fill: var(--ink); fill-opacity: .12; }
 .f1 { fill: var(--z1); } .f2 { fill: var(--z2); } .f3 { fill: var(--z3); } .f4 { fill: var(--z4); } .f5 { fill: var(--z5); }
 details { margin-top: 6px; color: var(--ink); }
@@ -498,6 +608,33 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 </main>
 <script>
 (function () {
+  // hover readout on run traces (HR / grade-adjusted pace vs time)
+  var tip = document.createElement("div"); tip.className = "ttip"; document.body.appendChild(tip);
+  function mmss(s) { s = Math.round(s); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+  document.querySelectorAll("svg.trace").forEach(function (svg) {
+    var arr = function (k) { return svg.dataset[k].split(" ").map(function (v) { return v === "-" ? null : +v; }); };
+    var hr = arr("hr"), gap = arr("gap"), pace = arr("pace"), bin = +svg.dataset.bin;
+    var laps = svg.dataset.laps ? svg.dataset.laps.split(" ").map(Number) : [];
+    var L = +svg.dataset.l, PW = +svg.dataset.pw, guide = svg.querySelector(".guide");
+    svg.addEventListener("pointermove", function (ev) {
+      var r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+      var x = (ev.clientX - r.left) * vb.width / r.width;
+      var i = Math.floor((x - L) / PW * hr.length);
+      if (i < 0 || i >= hr.length) { guide.style.display = "none"; tip.style.display = "none"; return; }
+      var gx = L + (i + .5) / hr.length * PW, t = i * bin;
+      guide.setAttribute("x1", gx); guide.setAttribute("x2", gx); guide.style.display = "";
+      var lap = 1; laps.forEach(function (c) { if (t >= c) lap++; });
+      tip.innerHTML = "<b>" + mmss(t) + "</b> · lap " + lap + "<br>HR " + (hr[i] || "—") +
+        "<br>GAP " + (gap[i] ? mmss(gap[i]) + "/mi" : "stopped") + (pace[i] ? "<br>Pace " + mmss(pace[i]) + "/mi" : "");
+      tip.style.display = "block";
+      var w = tip.offsetWidth, h = tip.offsetHeight, tx = ev.clientX + 14, ty = ev.clientY + 14;
+      if (tx + w > innerWidth - 8) tx = ev.clientX - w - 14;
+      if (ty + h > innerHeight - 8) ty = ev.clientY - h - 14;
+      tip.style.left = tx + "px"; tip.style.top = ty + "px";
+    });
+    svg.addEventListener("pointerleave", function () { guide.style.display = "none"; tip.style.display = "none"; });
+  });
+
   function iso(d) {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }

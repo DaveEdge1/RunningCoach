@@ -6,7 +6,8 @@ The existing data/runs.csv and data/laps.csv are the permanent record: runs with
 present (e.g., COROS-export-only runs when this runs on GitHub Actions) keep their old rows.
 
 Usage: python scripts/analyze.py   (run scripts/sync.py first)
-Writes data/laps.csv, data/runs.csv, and data/hr_hist.csv (seconds at each bpm), prints rolling mileage.
+Writes data/laps.csv, data/runs.csv, data/hr_hist.csv (seconds at each bpm), and data/trace.csv
+(HR, grade-adjusted pace, and pace in 15 s bins; no location), prints rolling mileage.
 """
 import csv, warnings
 from datetime import date, timedelta
@@ -57,6 +58,45 @@ def aet_pace(recs):
     return M_PER_MI / speed_at_aet, n
 
 
+TRACE_BIN = 15       # seconds per point in data/trace.csv
+TRACE_ALT_SMOOTH = 15  # +/- seconds of altitude averaging before taking grade
+TRACE_GRADE_SPAN = 30  # grade is taken over +/- this many seconds around each bin (barometer noise)
+
+
+def minetti_cost(g):
+    """Energy cost of running (J/kg/m) at gradient g (rise/run), Minetti et al. 2002, J Appl Physiol 93:1039."""
+    g = max(-0.45, min(0.45, g))  # range the polynomial was fitted on
+    return 155.4 * g**5 - 30.4 * g**4 - 43.3 * g**3 + 46.3 * g**2 + 19.5 * g + 3.6
+
+
+def trace(recs):
+    """Per TRACE_BIN seconds: mean HR, grade-adjusted pace and pace (sec/mi); None where stopped or missing."""
+    alt = [r[3] for r in recs]
+    sm = []
+    for i in range(len(alt)):
+        w = [a for a in alt[max(0, i - TRACE_ALT_SMOOTH):i + TRACE_ALT_SMOOTH + 1] if a is not None]
+        sm.append(sum(w) / len(w) if w else None)
+    out = []
+    for i in range(0, len(recs), TRACE_BIN):
+        seg = recs[i:i + TRACE_BIN]
+        hr = [r[0] for r in seg if r[0]]
+        j = min(len(recs) - 1, i + TRACE_BIN)
+        d0, d1 = recs[i][2], recs[j][2]
+        gap = pace_s = None
+        if d0 is not None and d1 is not None and j > i:
+            v = (d1 - d0) / (j - i)
+            if v >= 1.0:  # slower than ~27 min/mi counts as stopped
+                c = (i + j) // 2
+                a, b = max(0, c - TRACE_GRADE_SPAN), min(len(recs) - 1, c + TRACE_GRADE_SPAN)
+                da, db = recs[a][2], recs[b][2]
+                ok = None not in (sm[a], sm[b], da, db) and db - da > 20
+                g = (sm[b] - sm[a]) / (db - da) if ok else 0
+                pace_s = M_PER_MI / v
+                gap = M_PER_MI / (v * minetti_cost(g) / minetti_cost(0))
+        out.append((round(sum(hr) / len(hr)) if hr else None, gap and round(gap), pace_s and round(pace_s)))
+    return out
+
+
 def parse_fit(path):
     session, laps, recs = {}, [], []
     with fitdecode.FitReader(path) as fr:
@@ -92,7 +132,7 @@ def load_runs():
 
 
 def main():
-    lap_rows, run_rows, hist_rows, daily = [], [], [], {}
+    lap_rows, run_rows, hist_rows, trace_rows, daily = [], [], [], [], {}
     zone_secs = [0] * len(ZONES)
     manual = {l.split("#")[0].strip() for l in MANUAL_LIST.read_text().splitlines()} - {""}
     for fid, s, laps, recs in load_runs():
@@ -116,6 +156,9 @@ def main():
         for h in hr:
             counts[h] = counts.get(h, 0) + 1
         hist_rows.append([d, local.strftime("%H:%M"), " ".join(f"{b}:{c}" for b, c in sorted(counts.items()))])
+        tr = trace(recs)
+        trace_rows.append([d, local.strftime("%H:%M"), TRACE_BIN,
+                           *(" ".join("-" if x is None else str(x) for x in col) for col in zip(*tr))])
         n = len(hr) or 1
         zs = [sum(lo <= h < hi for h in hr) for _, lo, hi in ZONES]
         zone_secs = [a + b for a, b in zip(zone_secs, zs)]
@@ -138,8 +181,10 @@ def main():
     run_rows[:] = [r for r in run_rows if (str(r[0]), r[1]) not in stale]
     lap_rows[:] = [r for r in lap_rows if (str(r[0]), r[1]) not in stale]
     hist_rows[:] = [r for r in hist_rows if (str(r[0]), r[1]) not in stale]
+    trace_rows[:] = [r for r in trace_rows if (str(r[0]), r[1]) not in stale]
     have = {(str(r[0]), r[1]) for r in run_rows}
-    for name, rows in (("runs.csv", run_rows), ("laps.csv", lap_rows), ("hr_hist.csv", hist_rows)):
+    for name, rows in (("runs.csv", run_rows), ("laps.csv", lap_rows), ("hr_hist.csv", hist_rows),
+                       ("trace.csv", trace_rows)):
         path = ROOT / "data" / name
         if path.exists():
             with open(path, newline="") as f:
@@ -156,6 +201,11 @@ def main():
         w = csv.writer(f)
         w.writerow(["date", "start", "bpm_secs"])  # "bpm:seconds" pairs
         w.writerows(hist_rows)
+    trace_rows.sort(key=lambda r: (str(r[0]), r[1]))
+    with open(ROOT / "data" / "trace.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["date", "start", "bin_secs", "hr", "gap_secs", "pace_secs"])  # space-separated, "-" = none
+        w.writerows(trace_rows)
 
     with open(ROOT / "data" / "laps.csv", "w", newline="") as f:
         w = csv.writer(f)
