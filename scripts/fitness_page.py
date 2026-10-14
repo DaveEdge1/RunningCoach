@@ -9,8 +9,8 @@ from pathlib import Path
 from analyze import EF_HR_BAND, EF_MIN_SECS
 from build_site import BASE_CSS, tabs
 from config import (AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, DANIELS_FLOOR_FT, DANIELS_SPM, HARD_BOUT, HOME_ELEV_FT,
-                    HOME_NAME, LT, MANUAL_LOAD_PER_MIN, ROOT,
-                    ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race,
+                    HOME_NAME, LT, MANUAL_LOAD_PER_MIN, RECOVERY_KM_PER_DAY, ROOT,
+                    ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race, recovery_days,
                     zone_range)
 
 CTL_DAYS, ATL_DAYS = 42, 7
@@ -95,20 +95,29 @@ def series(runs, today):
     return out
 
 
-def efficiency(runs, daily):
+def efficiency(runs, daily, rc):
+    """Per-run pace at AeT, plus the trend. Runs in a race's recovery window (recovery_days after it)
+    are kept as points but marked and left out of the trend."""
     by_day = {x["d"]: x for x in daily}
+    recovering = {}
+    for r in rc:
+        for i in range(recovery_days(r["meters"]) + 1):
+            recovering[(r["d"] + timedelta(i)).isoformat()] = (r["name"], i)
     pts = []
     for r in runs:
         near_home = not r.get("elev_avg_ft") or abs(int(r["elev_avg_ft"]) - HOME_ELEV_FT) <= EF_ELEV_TOL_FT
         if r["aet_pace_secs"] and r["date"] in by_day and near_home:
             f = by_day[r["date"]]["formPct"]
+            rec = recovering.get(r["date"])
             pts.append({"d": r["date"], "p": int(r["aet_pace_secs"]), "n": int(r["aet_secs"]),
                         "mi": float(r["miles"]), "formPct": f,
+                        "rec": f"{rec[1]} day{'s' * (rec[1] != 1)} after {rec[0]}" if rec else None,
                         "cls": "fresh" if f > FRESH else "tired" if f < TIRED else "neutral"})
+    use = [p for p in pts if not p["rec"]]
     trend = []
     for x in daily:
         d = date.fromisoformat(x["d"])
-        win = [p for p in pts if 0 <= (d - date.fromisoformat(p["d"])).days < TREND_DAYS]
+        win = [p for p in use if 0 <= (d - date.fromisoformat(p["d"])).days < TREND_DAYS]
         if len(win) >= 4:
             trend.append({"d": x["d"], "p": round(sum(p["p"] * p["n"] for p in win) / sum(p["n"] for p in win), 1)})
     return pts, trend
@@ -216,9 +225,9 @@ def build(plan, built):
     runs = load_runs()
     today = date.today()
     daily = series(runs, today)
-    pts, trend = efficiency(runs, daily)
-    weeks = weekly(runs, daily)
     rc = races(runs, plan)
+    pts, trend = efficiency(runs, daily, rc)
+    weeks = weekly(runs, daily)
     now, ago = daily[-1], daily[-29] if len(daily) > 28 else None
 
     # tiles
@@ -237,7 +246,7 @@ def build(plan, built):
     ]
     if t_now:
         tiles.append(tile(f"Pace at AeT ({AET} bpm)", f"{mmss(t_now)}/mi",
-                          f"at {HOME_ELEV_FT:,} ft ({HOME_NAME}) · {TREND_DAYS}-day trend, flat steady running",
+                          f"at {HOME_ELEV_FT:,} ft ({HOME_NAME}) · {TREND_DAYS}-day trend, grade-adjusted easy running",
                           (signed((t_now - t_ago) / 1, "{:.0f}", good_up=False) + " s/mi vs. 4 weeks ago") if t_ago else ""))
     best = rc[-1] if rc else None
 
@@ -398,7 +407,8 @@ def build(plan, built):
         f"{AET_WARMUP_S // 60} minutes (warm-up), everything after {AET_MAX_S // 60} minutes (cardiac drift), and everything after a hard bout, "
         f"when HR stays high for the rest of the run. A hard bout is {HARD_BOUT[0][1] // 60} minutes at {HARD_BOUT[0][0]} bpm or "
         f"{HARD_BOUT[1][1] // 60} at {HARD_BOUT[1][0]}, on an exponential curve through those points "
-        f"(shorter the higher the HR), counted after the warm-up. A run needs at least {EF_MIN_SECS // 60} minutes "
+        f"(shorter the higher the HR), counted after the warm-up. Runs within one day per {RECOVERY_KM_PER_DAY:g} km of a race (Daniels' easy days "
+        f"after racing: 3 days for a 10K) show as open circles and stay out of the trend. A run needs at least {EF_MIN_SECS // 60} minutes "
         f"of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days, and each "
         f"point is drawn at the center of its window, so the line stops about {TREND_DAYS // 2} days short of today. "
         f"Only runs within {EF_ELEV_TOL_FT:,} ft of {HOME_NAME} ({HOME_ELEV_FT:,} ft) count, so the number is a "
@@ -526,9 +536,9 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 </section>
 
 <section class="card"><h2>Aerobic efficiency: pace at %%AET%% bpm, at %%HOME_ELEV%% ft</h2>
-<p class="note">Estimated from grade-adjusted easy running near AeT, after the warm-up and before any hard effort. Faster is up. Dots are single runs, colored by form going into that day, so a slow dot on a tired day isn't a sign of lost fitness.</p>
+<p class="note">Estimated from grade-adjusted easy running near AeT, after the warm-up and before any hard effort. Faster is up. Dots are single runs, colored by form going into that day, so a slow dot on a tired day isn't a sign of lost fitness. Open circles are runs in the days after a race, left out of the trend.</p>
 <div class="chart" id="cEff"></div>
-<div class="legend"><span><span class="ln" style="background:var(--s7)"></span>%%TREND_DAYS%%-day trend</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span></div>
+<div class="legend"><span><span class="ln" style="background:var(--s7)"></span>%%TREND_DAYS%%-day trend</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span><span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>Race recovery</span></div>
 </section>
 
 <section class="card"><h2>Intensity by week</h2>
@@ -700,14 +710,16 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     if (tp.length) el("path", { d: linePath(f, tp), fill: "none", stroke: "var(--s7)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
     D.eff.forEach(function (p) {
       var cx = f.X(day(p.d) + .5), cy = f.Y(p.p);
-      var c = el("circle", { cx: cx, cy: cy, r: 4.5, fill: "var(--" + p.cls + ")", stroke: "var(--card)", "stroke-width": 2 }, f.svg);
+      var c = p.rec ? el("circle", { cx: cx, cy: cy, r: 4, fill: "var(--card)", stroke: "var(--muted)", "stroke-width": 1.5 }, f.svg)
+                    : el("circle", { cx: cx, cy: cy, r: 4.5, fill: "var(--" + p.cls + ")", stroke: "var(--card)", "stroke-width": 2 }, f.svg);
       var hit = el("circle", { "class": "hit", cx: cx, cy: cy, r: 11 }, f.svg);
       hit.addEventListener("pointermove", function (ev) {
         c.setAttribute("r", 6);
         showTip("<b>" + fmtDate(p.d) + "</b> · " + p.mi.toFixed(1) + " mi<br>" + mmss(p.p) + "/mi at " + D.aet + " bpm<br>" +
-          Math.round(p.n / 60) + " min of steady flat running<br>" + sw("--" + p.cls) + "Form going in " + (p.formPct > 0 ? "+" : "") + p.formPct.toFixed(0) + "%", ev);
+          Math.round(p.n / 60) + " min of qualifying running<br>" + sw("--" + p.cls) + "Form going in " + (p.formPct > 0 ? "+" : "") + p.formPct.toFixed(0) + "%" +
+          (p.rec ? "<br>Recovering: " + p.rec + " (not in trend)" : ""), ev);
       });
-      hit.addEventListener("pointerleave", function () { c.setAttribute("r", 4.5); hideTip(); });
+      hit.addEventListener("pointerleave", function () { c.setAttribute("r", p.rec ? 4 : 4.5); hideTip(); });
     });
     if (tp.length) {
       var l = tp[tp.length - 1];

@@ -26,7 +26,13 @@ ZONE_NAMES = [z[0] for z in ZONES]
 AET_WARMUP_S = _cfg["aet_pace"]["warmup_min"] * 60
 AET_MAX_S = _cfg["aet_pace"]["max_min"] * 60
 AET_MAX_GRADE = _cfg["aet_pace"]["max_grade_pct"] / 100
+RECOVERY_KM_PER_DAY = _cfg["aet_pace"]["recovery_km_per_day"]  # Daniels: one easy day per 3 km raced
 HARD_BOUT = [(bpm, mins * 60) for bpm, mins in _cfg["aet_pace"]["hard_bout_minutes_at_bpm"]]
+
+
+def recovery_days(meters):
+    """Easy days after a race of this distance (Daniels, rounded: 15K -> 5, half marathon -> 7)."""
+    return round(meters / 1000 / RECOVERY_KM_PER_DAY)
 
 
 def hard_bout_secs(hr):
