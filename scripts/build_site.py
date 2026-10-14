@@ -109,6 +109,7 @@ _grad_ids = itertools.count(1)
 M_PER_MI_ = 1609.344
 GAP_FLOOR = 12 * 60  # sec/mi at the bottom of every week-view GAP panel; slower points are drawn on it
 GAP_SMOOTH_SECS = 15  # +/- seconds of averaging for running GAP points
+SPEED_SIMILAR = 0.2   # speed averages only with neighbors within 20% of it
 WALK_PACE = 805      # sec/mi (~13:25); slower points are treated as walking
 
 
@@ -206,18 +207,23 @@ def run_trace(run, W=640):
     if not t or not any(t["hr"]):
         return ""
     n, b = len(t["hr"]), t["bin"]
-    # GAP: running points are averaged over +/- GAP_SMOOTH_SECS with their running neighbors to calm
-    # barometer noise; walking points and the neighbors they separate (sprints between walks) stay raw
-    sp = [M_PER_MI_ / g if g else None for g in t["gap"]]
+    # GAP = speed x grade factor, each smoothed over +/- GAP_SMOOTH_SECS among running neighbors.
+    # Speed only averages with neighbors within SPEED_SIMILAR of it (edge-preserving), so GPS jitter on
+    # steady running is calmed while a sprint's plateau stays separate from its ramp-up and the walks.
+    # Walking points stay raw.
     running = [bool(pc) and pc < WALK_PACE for pc in t["pace"]]
+    fac = [pc / g if pc and g else None for pc, g in zip(t["pace"], t["gap"])]
+    spd = [M_PER_MI_ / pc if pc else None for pc in t["pace"]]
     r = GAP_SMOOTH_SECS // b
     gs = []
     for i in range(n):
-        if not sp[i] or not running[i]:
+        if not fac[i] or not running[i]:
             gs.append(t["gap"][i])
             continue
-        w = [sp[k] for k in range(max(0, i - r), min(n, i + r + 1)) if sp[k] and running[k]]
-        gs.append(M_PER_MI_ / (sum(w) / len(w)))
+        near = [k for k in range(max(0, i - r), min(n, i + r + 1)) if fac[k] and running[k]]
+        f = sum(fac[k] for k in near) / len(near)
+        v = [spd[k] for k in near if abs(spd[k] - spd[i]) <= SPEED_SIMILAR * spd[i]]
+        gs.append(M_PER_MI_ / (sum(v) / len(v) * f))
     hv = [h for h in t["hr"] if h]
     gv = sorted(g for g in gs if g)
     hlo, hhi = min(hv) - 3, max(hv) + 3
