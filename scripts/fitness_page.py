@@ -10,6 +10,7 @@ from analyze import EF_HR_BAND, EF_MIN_SECS
 from build_site import BASE_CSS, tabs
 from config import (ACUTE_DAYS, ACWR_DANGER, ACWR_SWEET, AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CHRONIC_DAYS,
                     CROSS_DEFAULT_RATE, CROSS_NAMES, DANIELS_FLOOR_FT, DANIELS_SPM, DECOUPLE_LIMIT, DECOUPLE_MIN_S, EFFORT_MIN_M, HARD_BOUT,
+                    RACE_WHOLE_RUN_TOL,
                     HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, RECOVERY_KM_PER_DAY, REP_DIST_TOL, REP_PACE_TOL, ROOT,
                     WORKOUT_Z5_PCT, ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race,
                     cross_kind, recovery_days, trail_days, zone_range)
@@ -246,24 +247,65 @@ def weekly(runs, daily, cross=()):
     return out
 
 
+def session_meters(sess):
+    """Distance named in a plan session ("5K time trial" -> 5000, "1 mi time trial" -> 1609), or None."""
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(km|k|mi|mile)\b", sess, re.I)
+    if not m:
+        return None
+    return float(m.group(1)) * (M_PER_MI if m.group(2).lower().startswith("mi") else 1000)
+
+
+def effort_windows():
+    """Fastest window per (date, start, meters) from data/efforts.csv: (clock secs, grade-adjusted secs)."""
+    path = ROOT / "data" / "efforts.csv"
+    if not path.exists():
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return {(e["date"], e["start"], round(float(e["meters"]))):
+                (float(e["secs"]), float(e["gap_secs"]) if e.get("gap_secs") else float(e["secs"]))
+                for e in csv.DictReader(f)}
+
+
 def races(runs, plan):
-    """Completed races (races.csv or plan type race) and time trials (plan session named so), with results."""
+    """Completed races (races.csv or plan type race) and time trials (plan session named so), with results.
+
+    The result is the fastest window at the race distance (races.csv, or the distance in the plan session) when
+    the recorded run is longer than that, so a warm-up and cool-down recorded in the same activity don't count.
+    A run within RACE_WHOLE_RUN_TOL of the distance (GPS runs a little short or long) is scored whole. With
+    several runs that day, the one with the fastest window wins. No distance known: the longest run, whole."""
     listed = {r["date"]: r for r in load_races()}
-    out = []
+    windows = effort_windows()
+    best = {}
     for r in runs:
         d = date.fromisoformat(r["date"])
         p, rc = plan.get(d), listed.get(d)
         is_race = rc is not None or (p is not None and p["type"] == "race")
         if not (is_race or (p is not None and "time trial" in p["session"].lower())):
             continue
+        target = rc["meters"] if rc else session_meters(p["session"])
+        run_m = float(r["miles"]) * M_PER_MI
         m, s = r["pace"].split(":")
-        secs = (int(m) * 60 + int(s)) * float(r["miles"])
-        meters = float(r["miles"]) * M_PER_MI
+        clock = (int(m) * 60 + int(s)) * float(r["miles"])
+        gap = float(r["gap_secs"]) if r.get("gap_secs") else clock
+        meters, whole = run_m, True
+        if target and run_m > target * (1 + RACE_WHOLE_RUN_TOL):
+            w = windows.get((r["date"], r["start"], round(target)))
+            if w is None:
+                print(f"warning: {r['date']} {r['start']}: no {dist_label(target)} window in efforts.csv "
+                      f"(add {target:g} m to best_efforts.distances_m); scoring the whole {run_m / M_PER_MI:.2f} mi")
+            else:
+                (clock, gap), meters, whole = w, target, False
+        elif target and run_m < target * (1 - RACE_WHOLE_RUN_TOL):
+            continue  # a warm-up or cool-down recorded separately
         elev = int(r["elev_avg_ft"]) if r.get("elev_avg_ft") else (rc or {}).get("elev")
-        name = rc["name"] if rc else f"{dist_label(meters)} {'race' if is_race else 'time trial'}"
-        out.append({"d": d, "name": name, "meters": meters, "secs": secs, "elev": elev,
-                    "gap": float(r["gap_secs"]) if r.get("gap_secs") else secs, "vdot": vdot(meters, secs)})
-    return out
+        name = rc["name"] if rc else f"{dist_label(target or meters)} {'race' if is_race else 'time trial'}"
+        cand = {"d": d, "name": name, "meters": meters, "secs": clock, "elev": elev, "gap": gap,
+                "vdot": vdot(meters, clock), "whole": whole, "run_mi": float(r["miles"])}
+        old = best.get(d)
+        faster = target and cand["secs"] / cand["meters"] < old["secs"] / old["meters"] if old else True
+        if faster or (old and not target and cand["run_mi"] > old["run_mi"]):
+            best[d] = cand
+    return [best[d] for d in sorted(best)]
 
 
 def src_elev(r):  # no GPS altitude or races.csv elevation: assume home
@@ -479,11 +521,8 @@ def next_time_trial(plan, today, before):
     """(date, meters, label) of the next planned session named "time trial" before `before`, if its distance parses."""
     for d in sorted(plan):
         sess = plan[d]["session"]
-        if today <= d < before and "time trial" in sess.lower():
-            m = re.search(r"(\d+(?:\.\d+)?)\s*(km|k|mi|mile)\b", sess, re.I)
-            if m:
-                n, unit = float(m.group(1)), m.group(2).lower()
-                return d, n * (M_PER_MI if unit.startswith("mi") else 1000), sess
+        if today <= d < before and "time trial" in sess.lower() and session_meters(sess):
+            return d, session_meters(sess), sess
     return None
 
 

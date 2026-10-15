@@ -56,7 +56,8 @@
       10000,
       21097.5
     ],
-    "min_m_for_fitness": 1609.344
+    "min_m_for_fitness": 1609.344,
+    "race_whole_run_tolerance_pct": 3
   },
   "workouts": {
     "pace_tolerance_s_per_mi": 5,

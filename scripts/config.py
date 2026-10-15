@@ -43,6 +43,9 @@ DECOUPLE_LIMIT = _cfg["decoupling"]["limit_pct"]
 # Best efforts
 EFFORT_DISTANCES = _cfg["best_efforts"]["distances_m"]
 EFFORT_MIN_M = _cfg["best_efforts"]["min_m_for_fitness"]
+# A race or time trial run within this of its distance is scored whole; a longer run (warm-up and cool-down
+# recorded with it) is scored by its fastest window at the distance
+RACE_WHOLE_RUN_TOL = _cfg["best_efforts"]["race_whole_run_tolerance_pct"] / 100
 
 # Cross-training that counts toward load (HR-zone load, like runs; not toward mileage)
 _ct = _cfg["cross_training"]
