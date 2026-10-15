@@ -17,7 +17,7 @@ This folder is David's running log; Claude acts as his running coach.
 - Lives in Flagstaff, AZ (~7,000 ft). Factor altitude into pace and HR interpretation.
 - Uses imperial units.
 - Hand-made FIT files (e.g., when he forgets his watch) go in `data/manual_runs.txt`. They count toward mileage but are excluded from HR and pace analysis.
-- `training-plan.md`: current block (Phoenix 10K, Dec 26 2026). Compare actual runs against it and adjust week by week.
+- `training-plan.md`: current block (Phoenix 5K, Dec 26 2026; switched from the 10K on 2026-10-15). Compare actual runs against it and adjust week by week.
 
 ## Publishing
 - GitHub repo DaveEdge1/RunningCoach (public), with Pages served from `docs/`.

@@ -9,7 +9,8 @@ _The scripts read thresholds from `config.json`. Update both when they change._
   Z1 Recovery <135 · Z2 Aerobic 135–144 · Z3 Tempo 145–157 · Z4 Threshold 158–167 · Z5 Above LT ≥168
 
 ## Goals
-- **2026-12-26 — 10K in Phoenix** (~1,100 ft, close to sea level). Goal: 44:00 (7:05/mi), set 2026-10-12; it lives in races.csv (goal_time).
+- **2026-12-26 — 5K in Phoenix** (~1,100 ft, close to sea level). Goal: 21:00 (6:46/mi), set 2026-10-15; it lives in races.csv (goal_time).
+  Switched from the 10K (goal was 44:00, set 2026-10-12) on 2026-10-15: the course is a 0.78 mi out-and-back, so the 10K meant 4 laps and 7 turnarounds.
 
 ## PRs / recent races
 - 2026-10-10: 10K in 47:55 by watch (GPS 9.99 km). Flat dirt road with some rocky sections, ~7,400 ft.

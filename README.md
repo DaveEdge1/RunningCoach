@@ -1,6 +1,6 @@
 # Running Coach
 
-Training log and plan for the **Phoenix 10K, Dec 26, 2026**, built with Claude Code as a running coach.
+Training log and plan for the **Phoenix 5K, Dec 26, 2026**, built with Claude Code as a running coach.
 
 **Calendar:** https://daveedge1.github.io/RunningCoach/ · **Fitness:** https://daveedge1.github.io/RunningCoach/fitness.html
 

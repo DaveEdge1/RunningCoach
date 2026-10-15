@@ -392,7 +392,7 @@ def decoupling_points(runs, plan, rc):
     return out
 
 
-REP_RE = re.compile(r"(\d+)\s*[×x]\s*(\d+(?:\.\d+)?)\s*(km|mi|k)\b", re.I)
+REP_RE = re.compile(r"(\d+)\s*[×x]\s*(\d+(?:\.\d+)?)\s*(km|mi|k|m)\b", re.I)
 CAP_RE = re.compile(r"HR\s*(?:≤|<=|<)\s*(\d+)", re.I)
 
 
@@ -423,11 +423,14 @@ def rep_target(session, basis, elev, nr):
     vlo, vhi = vdot_range(basis, elev)
     if "threshold" in s:  # training-plan.md: threshold reps stay at or below LT - 1
         return "threshold", (pace_at(vhi, 0.88), pace_at(vlo, 0.88)), cap or LT - 1
-    if "10k" in s or "interval" in s:
-        ten = (predict(vhi, 10000) / (10000 / M_PER_MI), predict(vlo, 10000) / (10000 / M_PER_MI))
-        if "interval" in s:
-            return "10K to interval", (pace_at(vhi, 0.98), ten[1]), cap
-        return "10K", ten, cap
+    if "interval" in s and "10k" not in s:  # Daniels I pace
+        return "interval", (pace_at(vhi, 0.98), pace_at(vlo, 0.98)), cap
+    for meters, word in ((5000, "5k"), (10000, "10k")):
+        if word in s:
+            race = (predict(vhi, meters) / (meters / M_PER_MI), predict(vlo, meters) / (meters / M_PER_MI))
+            if "interval" in s:
+                return f"{word.upper()} to interval", (pace_at(vhi, 0.98), race[1]), cap
+            return word.upper(), race, cap
     return None
 
 
@@ -446,7 +449,7 @@ def workouts(runs, plan, rc, efforts, nr):
         if p["type"] != "workout" or not m or d not in by_day:
             continue
         n, x, unit = int(m.group(1)), float(m.group(2)), m.group(3).lower()
-        dist = x * (M_PER_MI if unit == "mi" else 1000)
+        dist = x * (M_PER_MI if unit == "mi" else 1 if unit == "m" else 1000)
         best = None
         for r in by_day[d]:
             ls = laps.get((r["date"], r["start"]), [])
@@ -802,7 +805,7 @@ def build(plan, built):
     wo_html = ('\n<section class="card"><h2>Workouts vs. targets</h2>\n'
                f'<p class="note">Reps are the laps closest to the planned distance (within {REP_DIST_TOL:.0%}), fastest first. '
                f'Pace is judged on grade-adjusted pace, within {REP_PACE_TOL} s/mi of the target range, which comes from '
-               'current fitness at the time (Daniels threshold, 10K and interval paces) or the goal time, converted to '
+               'current fitness at the time (Daniels threshold, 5K, 10K and interval paces) or the goal time, converted to '
                'the run\'s elevation.</p>\n' + "\n".join(wo_parts) + "\n</section>")
 
     # best efforts
