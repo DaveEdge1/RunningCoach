@@ -177,7 +177,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <section class="card"><h2>Fitness vs. goal</h2>
 <p class="note">Sea-level VDOT over time. The goal (44:00 at 1,100 ft) needs a sea-level VDOT of 46.6. The dotted line is steady progress from current fitness to the goal on race day, the same path the checkpoint uses. Training best efforts are the top 3 per month (best per run, 1 mi and up, from runs that reached LT), leaving out slow outliers (below Tukey's lower fence, Q1 − 1.5 × IQR). They are usually not all-out, so they sit below race fitness.</p>
 <div class="chart" id="cGoal"></div>
-<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span><span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>Training best effort</span><span><span class="ln" style="background:var(--s2)"></span>Goal</span><span><span class="ln dot"></span>On-track path</span></div>
+<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span><span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>Training best effort</span><span><span class="dt" style="background:var(--s2)"></span>Goal race</span><span><span class="ln" style="background:var(--s2)"></span>Goal</span><span><span class="ln dot"></span>On-track path</span></div>
 </section>
 
 <section class="card"><h2>Best efforts</h2>
@@ -560,8 +560,10 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
       var c = dot(f, f.X(day(p.d) + .5), f.Y(p.v), 5.5, true, "--s1");
       hover(f, c, "<b>" + fmtDate(p.d) + "</b> · " + p.name + "<br>" + p.t + " · VDOT " + p.v.toFixed(1) + " (sea level)", 5.5);
     });
-    var r = el("text", { "class": "lbl", x: f.X(day(G.race) + .5), y: f.H - f.m.b - 6, "text-anchor": "end" }, f.svg);
-    r.textContent = G.name;
+    var gx = f.X(day(G.race) + .5), gy = f.Y(G.v);  // the goal race: where the on-track path ends
+    var g = dot(f, gx, gy, 6, true, "--s2");
+    el("text", { "class": "lbl", x: gx - 10, y: gy + 18, "text-anchor": "end" }, f.svg).textContent = G.name;
+    hover(f, g, "<b>" + fmtDate(G.race) + "</b> · " + G.name + "<br>Goal " + G.t + " · VDOT " + G.v.toFixed(1) + " (sea level)", 6);
   }
   function renderStatic() { proj(); acwr(); goalChart(); }
 

@@ -836,6 +836,7 @@ def build(plan, built):
         '<div class="chart" id="cGoal"></div>\n'
         '<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span>'
         '<span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>Training best effort</span>'
+        '<span><span class="dt" style="background:var(--s2)"></span>Goal race</span>'
         '<span><span class="ln" style="background:var(--s2)"></span>Goal</span>'
         '<span><span class="ln dot"></span>On-track path</span></div>\n</section>')
 
@@ -1415,8 +1416,10 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
       var c = dot(f, f.X(day(p.d) + .5), f.Y(p.v), 5.5, true, "--s1");
       hover(f, c, "<b>" + fmtDate(p.d) + "</b> · " + p.name + "<br>" + p.t + " · VDOT " + p.v.toFixed(1) + " (sea level)", 5.5);
     });
-    var r = el("text", { "class": "lbl", x: f.X(day(G.race) + .5), y: f.H - f.m.b - 6, "text-anchor": "end" }, f.svg);
-    r.textContent = G.name;
+    var gx = f.X(day(G.race) + .5), gy = f.Y(G.v);  // the goal race: where the on-track path ends
+    var g = dot(f, gx, gy, 6, true, "--s2");
+    el("text", { "class": "lbl", x: gx - 10, y: gy + 18, "text-anchor": "end" }, f.svg).textContent = G.name;
+    hover(f, g, "<b>" + fmtDate(G.race) + "</b> · " + G.name + "<br>Goal " + G.t + " · VDOT " + G.v.toFixed(1) + " (sea level)", 6);
   }
   function renderStatic() { proj(); acwr(); goalChart(); }
 
