@@ -2,7 +2,7 @@
 
 Built from data/runs.csv by scripts/build_site.py.
 """
-import csv, html, json, math, re
+import csv, html, json, math, re, statistics
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -20,6 +20,7 @@ TREND_MIN_RUNS = 3  # runs that must qualify in the window
 EF_ELEV_TOL_FT = 1000  # pace-at-AeT uses only runs within this of home elevation
 FRESH, TIRED = 5, -10  # form % thresholds
 RATE_DAYS = 42  # load per mile for the projection comes from this many recent days
+GOAL_EFFORTS_PER_MONTH = 3  # training efforts drawn on the fitness-vs-goal chart
 M_PER_MI = 1609.344
 FT_PER_M = 3.281
 DISTANCES = [(5000, "5K"), (10000, "10K"), (15000, "15K"), (21097.5, "Half marathon"), (42195, "Marathon")]
@@ -807,12 +808,19 @@ def build(plan, built):
             hard = e["maxhr"] is not None and e["maxhr"] >= LT and e["why"] != "race day"
             if hard and e["meters"] >= EFFORT_MIN_M - 1 and (k not in per_run or e["sl"] > per_run[k]["sl"]):
                 per_run[k] = e
+        by_month = {}  # then only the top few per calendar month, so easy-day efforts don't flatten the y-axis
+        for e in per_run.values():
+            by_month.setdefault((e["d"].year, e["d"].month), []).append(e)
+        top = [e for es in by_month.values() for e in sorted(es, key=lambda e: -e["sl"])[:GOAL_EFFORTS_PER_MONTH]]
+        if len(top) >= 4:  # drop slow outliers below Tukey's lower fence (Q1 - 1.5 IQR); fast ones are the signal
+            q1, _, q3 = statistics.quantiles([e["sl"] for e in top], n=4, method="inclusive")
+            top = [e for e in top if e["sl"] >= q1 - 1.5 * (q3 - q1)]
         goal = {"v": round(sl_vdot(nr["meters"], nr["goal_secs"], nr["elev"]), 2), "race": nr["date"].isoformat(),
                 "name": nr["name"], "t": hms(nr["goal_secs"]),
                 "races": [{"d": r["d"].isoformat(), "v": round(sl_vdot(r["meters"], r["secs"], src_elev(r)), 2),
                            "name": r["name"], "t": hms(r["secs"])} for r in rc],
                 "efforts": [{"d": e["d"].isoformat(), "v": round(e["sl"], 2), "name": effort_label(e["meters"]),
-                             "t": f"{hms(e['clock'])} ({hms(e['secs'])} grade-adjusted)", "why": e["why"]} for e in per_run.values()],
+                             "t": f"{hms(e['clock'])} ({hms(e['secs'])} grade-adjusted)", "why": e["why"]} for e in top],
                 "basis": {"d": best["d"].isoformat(), "v": round(sl_vdot(best["meters"], best["secs"], src_elev(best)), 2)}
                 if best else None}
         tt = next_time_trial(plan, today, nr["date"])
@@ -822,8 +830,9 @@ def build(plan, built):
         '\n<section class="card"><h2>Fitness vs. goal</h2>\n'
         f'<p class="note">Sea-level VDOT over time. The goal ({goal["t"]} at {ft(nr["elev"])}) needs a sea-level VDOT of {goal["v"]:.1f}. '
         'The dotted line is steady progress from current fitness to the goal on race day, the same path the checkpoint '
-        f'uses. Training best efforts (best per run, {effort_label(EFFORT_MIN_M)} and up, from runs that reached LT) are '
-        'usually not all-out, so they sit below race fitness.</p>\n'
+        f'uses. Training best efforts are the top {GOAL_EFFORTS_PER_MONTH} per month (best per run, '
+        f'{effort_label(EFFORT_MIN_M)} and up, from runs that reached LT), leaving out slow outliers (below Tukey\'s '
+        'lower fence, Q1 − 1.5 × IQR). They are usually not all-out, so they sit below race fitness.</p>\n'
         '<div class="chart" id="cGoal"></div>\n'
         '<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span>'
         '<span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>Training best effort</span>'
