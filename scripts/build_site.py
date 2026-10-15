@@ -6,7 +6,7 @@ import calendar, csv, html, itertools
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from config import AET, LT, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, next_race, zone_range
+from config import AET, CROSS_NAMES, LT, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, next_race, zone_range
 TYPES = {"easy": "Easy", "long": "Long", "workout": "Workout", "race": "Race",
          "cross": "Cross-train", "off": "Off"}
 
@@ -70,6 +70,28 @@ def load_actuals():
                 for b, c in hist.get((r["date"], r["start"]), {}).items():
                     d["hist"][b] = d["hist"].get(b, 0) + c
     return days
+
+
+_cross = None
+
+
+def cross_on(d):
+    """HTML lines for the hikes and XC skis recorded on day d (data/cross.csv; load counts, miles don't)."""
+    global _cross
+    if _cross is None:
+        _cross = defaultdict(list)
+        path = ROOT / "data" / "cross.csv"
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                for c in csv.DictReader(f):
+                    _cross[date.fromisoformat(c["date"])].append(c)
+    out = ""
+    for c in _cross.get(d, []):
+        s = int(c["secs"])
+        bits = [f"<b>{CROSS_NAMES[c['kind']]}</b>", f"{fmt_mi(float(c['miles']))} mi" if float(c["miles"]) else "",
+                f"{s // 3600}:{s % 3600 // 60:02d}", f"{c['avg_hr']} bpm" if c["avg_hr"] else "no HR", f"load {c['load']}"]
+        out += f'<div class="act">✓ {" · ".join(b for b in bits if b)}</div>'
+    return out
 
 
 def fmt_pace(total_secs, miles):
@@ -352,6 +374,7 @@ def month_cell(d, plan, act, month):
         parts.append(f'<div class="act">{act_summary(a)}{hr_curve(a["hist"], W=150, H=26, compact=True) or zone_bar(a["zones"], a["hr_secs"])}</div>')
     elif missed(d, plan):
         parts.append('<div class="act missed">not recorded</div>')
+    parts.append(cross_on(d))
     return f'<div class="{day_classes(d, plan, month)}" data-date="{d}">{"".join(parts)}</div>'
 
 
@@ -392,6 +415,7 @@ def week_day(d, plan, act):
         body += "".join(laps_table(r) for r in a["runs"]) + "</div>"
     elif missed(d, plan):
         body += '<div class="act missed">not recorded</div>'
+    body += cross_on(d)
     return (f'<div class="wday {day_classes(d, plan)}" data-date="{d}">'
             f'<div class="wdate"><b>{d:%a}</b><span>{d:%b} {d.day}</span></div>'
             f'<div class="wbody">{body}</div></div>')
@@ -406,7 +430,8 @@ def week_html(wk0, plan, act, start):
     label = f"Plan week {n} · " if start and start <= wk0 <= max(plan) else ""
     end = wk[-1]
     zsum = f'<div class="zts">{zone_text(zones, hr_total)}</div>' if hr_total else ""
-    wload = sum(act[d].get("load", 0) for d in wk if d in act)
+    cross_on(wk[0])  # loads _cross
+    wload = sum(act[d].get("load", 0) for d in wk if d in act) + sum(int(c["load"]) for d in wk for c in _cross.get(d, []))
     zsum = (f'<div class="zts">load {wload}</div>' if wload else "") + zsum
     head = (f'<div class="whead"><h2>{label}{wk0:%b} {wk0.day} – {end:%b} {end.day}</h2>'
             f'<div class="wsum">{total_html(pm, am, wk0)}{zsum}</div></div>')

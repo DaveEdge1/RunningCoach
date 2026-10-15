@@ -29,7 +29,7 @@ Cut-back weeks fall on the trips. The weeks in between build toward 40.
 | 2 | Oct 19–25 | 35 | Tue 4 × 1 mi threshold | Sat 10 |
 | 3 | Oct 26–Nov 1 | 37 | Tue 3 × 1.5 mi threshold | Sat 11 |
 | 4 | Nov 2–8 | 40.5 | Tue 2 × 2 mi threshold | Fri 12 |
-| 5 | Nov 9–15 | 23 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10) | Sat 9 |
+| 5 | Nov 9–15 | 23 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10): ~4 h down Tanner, 6 h up New Hance, 35-lb pack | Sat 9 |
 | 6 | Nov 16–22 | 38.5 | Tue 6 × 1 km at 10K/interval pace | Fri 12, last 2 steady |
 | 7 | Nov 23–29 | 34.5 · **cut-back** | **Puerto Peñasco** (Sat Nov 21–Wed Nov 25): Tue 4 × 1 km at goal pace (sea level) · Thu 3 × 1.5 mi threshold | Sat 12 |
 | 8 | Nov 30–Dec 6 | 17.5 (+12 optional) · **cut-back** | Tue **5K time trial** (checkpoint for the goal) · **Elk hunt** (Thu Dec 3–Sun Dec 6) | n/a |

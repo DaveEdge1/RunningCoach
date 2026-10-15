@@ -29,6 +29,38 @@ AET_MAX_GRADE = _cfg["aet_pace"]["max_grade_pct"] / 100
 RECOVERY_KM_PER_DAY = _cfg["aet_pace"]["recovery_km_per_day"]  # Daniels: one easy day per 3 km raced
 HARD_BOUT = [(bpm, mins * 60) for bpm, mins in _cfg["aet_pace"]["hard_bout_minutes_at_bpm"]]
 
+# Load ramp: acute:chronic workload ratio (Gabbett 2016)
+ACUTE_DAYS = _cfg["load_ramp"]["acute_days"]
+CHRONIC_DAYS = _cfg["load_ramp"]["chronic_days"]
+ACWR_SWEET = tuple(_cfg["load_ramp"]["sweet_spot"])
+ACWR_DANGER = _cfg["load_ramp"]["danger"]
+WORKOUT_Z5_PCT = _cfg["load_ramp"]["workout_z5_pct"]  # % of time in Z5 that makes an unplanned run a workout (load projection)
+
+# Aerobic decoupling (Friel): first vs. second half of a run's steady part
+DECOUPLE_MIN_S = _cfg["decoupling"]["min_minutes"] * 60
+DECOUPLE_LIMIT = _cfg["decoupling"]["limit_pct"]
+
+# Best efforts
+EFFORT_DISTANCES = _cfg["best_efforts"]["distances_m"]
+EFFORT_MIN_M = _cfg["best_efforts"]["min_m_for_fitness"]
+
+# Cross-training that counts toward load (HR-zone load, like runs; not toward mileage)
+_ct = _cfg["cross_training"]
+CROSS_FIT_SPORTS = _ct["fit_sports"]          # FIT sport -> kind ("hike", "ski")
+CROSS_NAMES = _ct["names"]                    # kind -> display name
+CROSS_PLAN_WORDS = _ct["plan_keywords"]       # kind -> whole words (plus -s, -ing) that mark it in a plan.csv session
+CROSS_DEFAULT_RATE = _ct["default_load_per_min"]  # kind -> load/min with no HR and no history
+
+
+def cross_kind(session):
+    """Cross-training kind named in a plan session ("Grand Canyon: backpack ..." -> "hike"), or None."""
+    s = session.lower()
+    return next((k for k, words in CROSS_PLAN_WORDS.items() if any(re.search(rf"\b{w}(?:s|ing)?\b", s) for w in words)), None)
+
+# Workout reps
+REP_PACE_TOL = _cfg["workouts"]["pace_tolerance_s_per_mi"]
+REP_DIST_TOL = _cfg["workouts"]["rep_distance_tolerance_pct"] / 100
+
 
 def recovery_days(meters):
     """Easy days after a race of this distance (Daniels, rounded: 15K -> 5, half marathon -> 7)."""

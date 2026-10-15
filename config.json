@@ -20,9 +20,72 @@
   "manual_run_load_per_min": 2.5,
   "aet_pace": {
     "warmup_min": 10,
-    "hard_bout_minutes_at_bpm": [[155, 4], [165, 2]],
+    "hard_bout_minutes_at_bpm": [
+      [
+        155,
+        4
+      ],
+      [
+        165,
+        2
+      ]
+    ],
     "max_min": 90,
     "max_grade_pct": 5,
     "recovery_km_per_day": 3
+  },
+  "load_ramp": {
+    "acute_days": 7,
+    "chronic_days": 28,
+    "sweet_spot": [
+      0.8,
+      1.3
+    ],
+    "danger": 1.5,
+    "workout_z5_pct": 10
+  },
+  "decoupling": {
+    "min_minutes": 45,
+    "limit_pct": 5
+  },
+  "best_efforts": {
+    "distances_m": [
+      1609.344,
+      3218.688,
+      5000,
+      10000,
+      21097.5
+    ],
+    "min_m_for_fitness": 1609.344
+  },
+  "workouts": {
+    "pace_tolerance_s_per_mi": 5,
+    "rep_distance_tolerance_pct": 12
+  },
+  "cross_training": {
+    "fit_sports": {
+      "hiking": "hike",
+      "mountaineering": "hike",
+      "cross_country_skiing": "ski"
+    },
+    "names": {
+      "hike": "Hike",
+      "ski": "XC ski"
+    },
+    "plan_keywords": {
+      "hike": [
+        "hike",
+        "hiking",
+        "backpack"
+      ],
+      "ski": [
+        "ski",
+        "skiing"
+      ]
+    },
+    "default_load_per_min": {
+      "hike": 1.0,
+      "ski": 2.5
+    }
   }
 }
