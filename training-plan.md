@@ -35,8 +35,8 @@ Cut-back weeks fall on the trips. The weeks in between build toward 40.
 | 6 | Nov 16–22 | 38.5 | Tue 5 × 1 km at interval pace | Fri 12, last 2 steady |
 | 7 | Nov 23–29 | 34.5 · **cut-back** | **Puerto Peñasco** (Sat Nov 21–Wed Nov 25): Tue 4 × 1 km at 5K goal pace (4:12/km, sea level) · Thu 3 × 1.5 mi threshold | Sat 12 |
 | 8 | Nov 30–Dec 6 | 17.5 (+12 optional) · **cut-back** | Tue **5K time trial** (race-distance rehearsal and checkpoint for the goal) · **Elk hunt** (Thu Dec 3–Sun Dec 6) | n/a |
-| 9 | Dec 7–13 | 39 | Tue 5 × 1 km at goal effort · Thu 3 × 1.5 mi threshold | Sat 12, last 2 steady |
-| 10 | Dec 14–20 | 32.5 · taper | Tue 6 × 800 m at goal 5K pace | Sat 10 |
+| 9 | Dec 7–13 | 39 | Tue **5 × 1000 m at 7:02, 200 m jog** (goal pace at Flagstaff) · Thu 3 × 1.5 mi threshold | Sat 12, last 2 steady |
+| 10 | Dec 14–20 | 33 · taper | Tue **5 × 1000 m at 7:02, 200 m jog** (repeat of Dec 8) | Sat 10 |
 | 11 | Dec 21–26 | ~16 + race | Tue 3 × 1 km at goal effort + 4 × 200 m | **Sat: RACE (5K)** |
 
 Paces come from the most recent race or time trial: the Oct 10 10K until the Dec 1 time trial, which also checks progress toward the goal. "Goal" sessions use 21:00 converted to the altitude where they're run. See `plan.csv` (or the calendar) for each day.
