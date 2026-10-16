@@ -813,8 +813,21 @@ def build(plan, built):
     if efforts:
         cut = today - timedelta(28)
         rows = []
+        # races and time trials at a table distance compete too: a race GPS measured a little short of the
+        # distance (scored whole) has no window of that length in efforts.csv
+        maxhr = {}
+        for e in efforts:
+            if e["maxhr"] is not None:
+                maxhr[e["d"]] = max(maxhr.get(e["d"], 0), e["maxhr"])
+        race_eff = []
+        for r in rc:
+            el = src_elev(r)
+            race_eff.append({"d": r["d"], "meters": r["meters"], "secs": r["gap"], "clock": r["secs"], "elev": r["elev"],
+                             "net": None, "maxhr": maxhr.get(r["d"]), "sl": sl_vdot(r["meters"], r["gap"], el),
+                             "why": "", "race": r["name"]})
         for m in sorted({e["meters"] for e in efforts}):
-            at = [e for e in efforts if e["meters"] == m]
+            at = [e for e in efforts if e["meters"] == m] + [
+                r for r in race_eff if abs(r["meters"] - m) <= m * RACE_WHOLE_RUN_TOL]
             recent = [e for e in at if e["d"] > cut]
             top_all = max(at, key=lambda e: e["sl"])
             top_28 = max(recent, key=lambda e: e["sl"]) if recent else None
@@ -827,7 +840,8 @@ def build(plan, built):
                     f"<tr><td>{effort_label(m) if i == 0 else ''}</td><td>{period}</td>"
                     f"<td>{hms(e['clock'])}</td><td>{hms(e['secs'])}</td><td>{mmss(e['secs'] / (m / M_PER_MI))}</td>"
                     f"<td>{e['d']:%b} {e['d'].day}</td><td>{ft(e['elev'])}</td><td>{net}</td>"
-                    f"<td>{e['maxhr'] or ''}</td><td>{e['sl']:.1f}</td><td>{e['why'] or 'yes'}</td></tr>")
+                    f"<td>{e['maxhr'] or ''}</td><td>{e['sl']:.1f}</td>"
+                    f"<td>{'race result: ' + e['race'] if e.get('race') else e['why'] or 'yes'}</td></tr>")
         eff_html = (
             '\n<section class="card"><h2>Best efforts</h2>\n'
             '<p class="note">Fastest grade-adjusted time over each distance inside any run, in the last 28 days and in all '

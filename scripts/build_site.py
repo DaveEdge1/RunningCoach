@@ -566,6 +566,7 @@ body.weekly #monthly, body:not(.weekly) #weekly { display: none; }
 .z4 { background: var(--z4); } .z5 { background: var(--z5); }
 .wk { display: flex; flex-direction: column; justify-content: center; align-items: flex-end;
   text-align: right; font-variant-numeric: tabular-nums; cursor: pointer; }
+#monthly .day { cursor: pointer; }
 .wk b { font-size: 18px; }
 .wk small, .wsum small { color: var(--muted); font-size: 11px; margin-left: 4px; }
 /* week view */
@@ -643,7 +644,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 </div>
 <div id="monthly">%%MONTHS%%</div>
 <div id="weekly">%%WEEKS%%</div>
-<footer>Plan vs. completed runs. Click a week total to open that week. Updated %%BUILT%%.</footer>
+<footer>Plan vs. completed runs. Click a day or week total to open that week. Updated %%BUILT%%.</footer>
 </main>
 <script>
 (function () {
@@ -722,8 +723,10 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
     if (e.key === "ArrowLeft") showWeek(idx - 1);
     if (e.key === "ArrowRight") showWeek(idx + 1);
   });
-  document.querySelectorAll(".wk[data-week]").forEach(function (el) {
-    el.onclick = function () {
+  // a click on any day or week total in the month view opens that week
+  document.querySelectorAll("#monthly .week[data-week]").forEach(function (el) {
+    el.onclick = function (e) {
+      if (e.target.closest("a, summary, details")) return;
       var i = weeks.findIndex(function (w) { return w.dataset.week === el.dataset.week; });
       if (i >= 0) { showWeek(i); setView("week"); window.scrollTo(0, 0); }
     };
