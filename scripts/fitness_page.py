@@ -1240,7 +1240,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     var dots = ["--s1", "--s2"].map(function (c) { return el("circle", { r: 4, fill: "var(" + c + ")", stroke: "var(--card)", "stroke-width": 2, display: "none" }, f.svg); });
     var hit = el("rect", { "class": "hit", x: f.m.l, y: f.m.t, width: f.W - f.m.l - f.m.r, height: f.H - f.m.t - f.m.b }, f.svg);
     hit.addEventListener("pointermove", function (ev) {
-      var r = f.svg.getBoundingClientRect(), px = (ev.clientX - r.left) * f.W / r.width;
+      var r = f.root.getBoundingClientRect(), px = (ev.clientX - r.left) * f.W / r.width;
       var dd = x0 + (px - f.m.l) / (f.W - f.m.l - f.m.r) * (x1 - x0);
       var i = Math.max(0, Math.min(D.daily.length - 1, Math.floor(dd - FIRST))), x = D.daily[i], cx = f.X(day(x.d) + .5);
       guide.setAttribute("x1", cx); guide.setAttribute("x2", cx); guide.removeAttribute("display");
@@ -1376,7 +1376,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     var dots = keys.map(function (k) { return el("circle", { r: 4, fill: "var(" + k[1] + ")", stroke: "var(--card)", "stroke-width": 2, display: "none" }, f.svg); });
     var hit = el("rect", { "class": "hit", x: f.m.l, y: f.m.t, width: f.W - f.m.l - f.m.r, height: f.H - f.m.t - f.m.b }, f.svg);
     hit.addEventListener("pointermove", function (ev) {
-      var r = f.svg.getBoundingClientRect(), px = (ev.clientX - r.left) * f.W / r.width;
+      var r = f.root.getBoundingClientRect(), px = (ev.clientX - r.left) * f.W / r.width;
       var a = day(pts[0].d), dd = Math.floor(a + (px - f.m.l) / (f.W - f.m.l - f.m.r) * (day(pts[pts.length - 1].d) + 1 - a));
       var x = pts[Math.max(0, Math.min(pts.length - 1, dd - a))], cx = f.X(day(x.d) + .5);
       guide.setAttribute("x1", cx); guide.setAttribute("x2", cx); guide.removeAttribute("display");

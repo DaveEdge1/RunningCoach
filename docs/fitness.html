@@ -212,7 +212,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <p><b>Workout reps</b> come from laps, so press lap at the start and end of each rep. Grade-adjusted lap pace uses the same Minetti model as pace at AeT.</p>
 <p><b>Altitude</b> is converted two published ways and shown as a range. <a href="https://news.vdoto2.com/2011/03/ask-a-coach-how-do-you-adjust-threshold-pace-at-altitude/">Daniels</a>: paces slow 4–5 s/mi per 1,000 ft above 3,000 ft (15–18 s/mi at 7,000 ft). <a href="https://www.ustfccca.org/assets/ncaa-info/2009-outdoor-alt-adjust.pdf">NCAA 2009 altitude tables</a>: % added by venue altitude (0–7,703 ft) for the mile, 5K and 10K, interpolated by altitude and distance, and held at the nearest of those distances outside that span. Neither accounts for acclimatization.</p>
 </section>
-<footer>Updated Oct 16, 2026 07:29 MST.</footer>
+<footer>Updated Oct 16, 2026 07:37 MST.</footer>
 </main>
 <div id="tip"></div>
 <script>
@@ -342,7 +342,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     var dots = ["--s1", "--s2"].map(function (c) { return el("circle", { r: 4, fill: "var(" + c + ")", stroke: "var(--card)", "stroke-width": 2, display: "none" }, f.svg); });
     var hit = el("rect", { "class": "hit", x: f.m.l, y: f.m.t, width: f.W - f.m.l - f.m.r, height: f.H - f.m.t - f.m.b }, f.svg);
     hit.addEventListener("pointermove", function (ev) {
-      var r = f.svg.getBoundingClientRect(), px = (ev.clientX - r.left) * f.W / r.width;
+      var r = f.root.getBoundingClientRect(), px = (ev.clientX - r.left) * f.W / r.width;
       var dd = x0 + (px - f.m.l) / (f.W - f.m.l - f.m.r) * (x1 - x0);
       var i = Math.max(0, Math.min(D.daily.length - 1, Math.floor(dd - FIRST))), x = D.daily[i], cx = f.X(day(x.d) + .5);
       guide.setAttribute("x1", cx); guide.setAttribute("x2", cx); guide.removeAttribute("display");
@@ -478,7 +478,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     var dots = keys.map(function (k) { return el("circle", { r: 4, fill: "var(" + k[1] + ")", stroke: "var(--card)", "stroke-width": 2, display: "none" }, f.svg); });
     var hit = el("rect", { "class": "hit", x: f.m.l, y: f.m.t, width: f.W - f.m.l - f.m.r, height: f.H - f.m.t - f.m.b }, f.svg);
     hit.addEventListener("pointermove", function (ev) {
-      var r = f.svg.getBoundingClientRect(), px = (ev.clientX - r.left) * f.W / r.width;
+      var r = f.root.getBoundingClientRect(), px = (ev.clientX - r.left) * f.W / r.width;
       var a = day(pts[0].d), dd = Math.floor(a + (px - f.m.l) / (f.W - f.m.l - f.m.r) * (day(pts[pts.length - 1].d) + 1 - a));
       var x = pts[Math.max(0, Math.min(pts.length - 1, dd - a))], cx = f.X(day(x.d) + .5);
       guide.setAttribute("x1", cx); guide.setAttribute("x2", cx); guide.removeAttribute("display");
