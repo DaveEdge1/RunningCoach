@@ -35,8 +35,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs data/runs.csv data/laps.csv data/hr_hist.csv data/trace.csv data/efforts.csv data/cross.csv data/elev.csv log.csv
+          git add docs data/runs.csv data/laps.csv data/hr_hist.csv data/trace.csv data/efforts.csv data/cross.csv data/elev.csv data/segments.csv log.csv
           if git diff --cached --quiet; then echo "Nothing new to publish."; exit 0; fi
           git commit -q -m "Update runs and calendar ($(date +%F))"
-          git pull -q --rebase
+          git pull -q --rebase --autostash
           git push -q
