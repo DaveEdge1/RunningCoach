@@ -8,17 +8,19 @@ present (e.g., COROS-export-only runs when this runs on GitHub Actions) keep the
 Usage: python scripts/analyze.py   (run scripts/sync.py first)
 Writes data/laps.csv, data/runs.csv, data/hr_hist.csv (seconds at each bpm), data/trace.csv
 (HR, grade-adjusted pace, and pace in 5 s bins; no location), data/efforts.csv (fastest grade-adjusted time
-over each standard distance within each run), and data/cross.csv (hikes and XC skis: HR-zone load, not mileage),
+over each standard distance within each run), data/segments.csv (steady laps: grade-adjusted speed and HR, for the
+HR-based fitness estimate), and data/cross.csv (hikes and XC skis: HR-zone load, not mileage),
 prints rolling mileage.
 """
-import bisect, csv, warnings
+import bisect, csv, statistics, warnings
 from datetime import date, timedelta
 
 import fitdecode
 
 import elevation
 from config import (AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CROSS_DEFAULT_RATE, CROSS_FIT_SPORTS, DECOUPLE_MIN_S,
-                    EFFORT_DISTANCES, MANUAL_LOAD_PER_MIN, ROOT, TZ, ZONES, hard_bout_secs)
+                    EFFORT_DISTANCES, HARD_BOUT, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MANUAL_LOAD_PER_MIN, ROOT,
+                    TZ, ZONES, hard_bout_secs)
 
 warnings.filterwarnings("ignore", module="fitdecode")  # COROS files trip a harmless size warning
 
@@ -227,6 +229,49 @@ def lap_gaps(laps, recs, ga):
     return out
 
 
+def hr_segments(laps, recs, ga):
+    """Steady stretches for the HR-based fitness estimate: per lap, the seconds after HR has settled
+    (HRFIT_SETTLE_S into the lap, and after the run's warm-up), before AET_MAX_S (cardiac drift), with HR, running,
+    on grades under AET_MAX_GRADE averaged over EF_WINDOW s. A lap counts with at least HRFIT_MIN_S such seconds
+    and grade-adjusted speed steady over them (coefficient of variation of 30 s means under HRFIT_MAX_CV, so a lap
+    holding strides or a surge doesn't). After a hard bout, only laps that are hard themselves (mean HR at the first
+    hard-bout HR or above) count, since HR stays raised on the easy laps that follow (jogs, cool-down).
+    Consecutive laps within HRFIT_MAX_CV of each other's grade-adjusted speed are joined first, so short auto-laps
+    on an easy run make one block while a rep and its jog stay apart.
+    Laps are matched to records by cumulative distance, as in lap_gaps. Returns [(first lap, secs, gap m/s, mean HR)]."""
+    hb = hard_bout_start(recs)
+    lap_ks, start = [], 0.0
+    for l in laps:
+        end = start + l["dist"]
+        ks = [k for k in range(len(recs)) if recs[k][2] is not None and start <= recs[k][2] < end]
+        start = end
+        lap_ks.append((ks, sum(ga[k][1] for k in ks) / len(ks) if ks else 0))
+    blocks = []  # (first lap number, records)
+    for i, (ks, v) in enumerate(lap_ks, 1):
+        if not ks:
+            continue
+        if blocks and blocks[-1][2] and abs(v - blocks[-1][2]) <= HRFIT_MAX_CV * blocks[-1][2]:
+            blocks[-1][1].extend(ks)
+        else:
+            blocks.append((i, list(ks), v))
+    out = []
+    for i, ks, _ in blocks:
+        ks = [k for k in ks[HRFIT_SETTLE_S:] if max(AET_WARMUP_S, EF_WINDOW) <= k < AET_MAX_S and recs[k][0]
+              and ga[k][1] >= 2.0 and abs(sum(g for g, _ in ga[k - EF_WINDOW:k]) / EF_WINDOW) <= AET_MAX_GRADE]
+        if len(ks) < HRFIT_MIN_S:
+            continue
+        v = sum(ga[k][1] for k in ks) / len(ks)
+        hr = sum(recs[k][0] for k in ks) / len(ks)
+        if hb is not None and ks[0] > hb and hr < HARD_BOUT[0][0]:
+            continue
+        blocks = [ks[j:j + 30] for j in range(0, len(ks) - 29, 30)]
+        means = [sum(ga[k][1] for k in b) / len(b) for b in blocks]
+        if len(means) > 1 and statistics.pstdev(means) / v > HRFIT_MAX_CV:
+            continue
+        out.append((i, len(ks), round(v, 3), round(hr, 1)))
+    return out
+
+
 def trace(recs, ga):
     """Per TRACE_BIN seconds: mean HR, grade-adjusted pace and pace (sec/mi), from grade_adjust's ga.
     GAP is computed second by second so short hills keep their grade. Minetti's model is
@@ -289,7 +334,7 @@ def load_runs():
 
 
 def main():
-    lap_rows, run_rows, hist_rows, trace_rows, effort_rows, cross_rows, daily = [], [], [], [], [], [], {}
+    lap_rows, run_rows, hist_rows, trace_rows, effort_rows, seg_rows, cross_rows, daily = [], [], [], [], [], [], [], {}
     zone_secs = [0] * len(ZONES)
     manual = {l.split("#")[0].strip() for l in MANUAL_LIST.read_text().splitlines()} - {""}
     for fid, s, laps, recs in load_runs():
@@ -321,6 +366,8 @@ def main():
         for m, secs, gap, drop, ahr, mhr in best_efforts(recs, ga, prof):
             effort_rows.append([d, local.strftime("%H:%M"), m, secs, gap,
                                 drop if drop == "" else round(drop * FT_PER_M), ahr, mhr])
+        for lap, secs, v, h in hr_segments(laps, recs, ga):
+            seg_rows.append([d, local.strftime("%H:%M"), lap, secs, v, h])
         raw, adj = gap_ratio(recs, ga)
         counts = {}
         for h in hr:
@@ -354,6 +401,7 @@ def main():
     hist_rows[:] = [r for r in hist_rows if (str(r[0]), r[1]) not in stale]
     trace_rows[:] = [r for r in trace_rows if (str(r[0]), r[1]) not in stale]
     effort_rows[:] = [r for r in effort_rows if (str(r[0]), r[1]) not in stale]
+    seg_rows[:] = [r for r in seg_rows if (str(r[0]), r[1]) not in stale]
     old_cross = []
     if (ROOT / "data" / "cross.csv").exists():
         with open(ROOT / "data" / "cross.csv", newline="") as f:
@@ -368,7 +416,7 @@ def main():
         w.writerows(cross_rows)
     have = {(str(r[0]), r[1]) for r in run_rows}
     for name, rows in (("runs.csv", run_rows), ("laps.csv", lap_rows), ("hr_hist.csv", hist_rows),
-                       ("trace.csv", trace_rows), ("efforts.csv", effort_rows)):
+                       ("trace.csv", trace_rows), ("efforts.csv", effort_rows), ("segments.csv", seg_rows)):
         path = ROOT / "data" / name
         if path.exists():
             with open(path, newline="") as f:
@@ -391,6 +439,11 @@ def main():
         w = csv.writer(f)
         w.writerow(["date", "start", "meters", "secs", "gap_secs", "net_elev_ft", "avg_hr", "max_hr"])
         w.writerows(effort_rows)
+    seg_rows.sort(key=lambda r: (str(r[0]), r[1], int(r[2])))
+    with open(ROOT / "data" / "segments.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["date", "start", "lap", "secs", "gap_mps", "avg_hr"])
+        w.writerows(seg_rows)
     elevation.save()
     with open(ROOT / "data" / "trace.csv", "w", newline="") as f:
         w = csv.writer(f)

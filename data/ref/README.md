@@ -54,3 +54,15 @@ Grand Canyon trip (79.8 kg, 35-lb / 15.9 kg pack; Tanner 10 mi down in 4 h, New 
   1994;26:112–116: %HRmax = 0.64 × %VO2max + 37.
 Result: Tanner ~107–113 bpm, New Hance ~119–127 bpm, both Z1 (< 135). HR drift late in a 6-hour climb may
 push some time into Z2, so the climb's load is likely a little low.
+
+## HR-based fitness estimate (config.json → heart_rate.resting, hr_fitness)
+Effective VO2max from a steady stretch = 3.5 + (VO2(v) − 3.5) / %HRR, where VO2(v) is Daniels' oxygen
+cost of running at grade-adjusted speed v (the equation inside VDOT) and %HRR = (HR − rest) / (max − rest).
+- Swain DP, Leutholtz BC, "Heart rate reserve is equivalent to %VO2 reserve, not to %VO2max",
+  Med Sci Sports Exerc 1997;29:410–414. VO2 reserve = VO2max − 3.5 ml/kg/min (resting).
+- The %HRmax form (Swain 1994, above) was tried first and rejected: on this athlete's 2026-09/10 data its
+  estimate fell 2.1 VDOT per 10 bpm of HR (easy runs read high, hard ones low). The %HRR form with a
+  resting HR of 50 (his own figure, 2026-10-16) drifts −0.4 per 10 bpm.
+- A population relation doesn't fit one runner exactly, so estimates are scaled to match race results
+  (median ratio over the last `calibration_races`), as Runalyze does with its effective VO2max
+  correction factor: https://runalyze.com/help/article/vo2max

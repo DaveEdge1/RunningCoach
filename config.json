@@ -7,6 +7,7 @@
   "heart_rate": {
     "aerobic_threshold": 145,
     "lactate_threshold": 168,
+    "resting": 50,
     "max": 188
   },
   "altitude": {
@@ -56,8 +57,14 @@
       10000,
       21097.5
     ],
-    "min_m_for_fitness": 1609.344,
     "race_whole_run_tolerance_pct": 3
+  },
+  "hr_fitness": {
+    "lap_settle_s": 120,
+    "min_minutes": 4,
+    "max_speed_cv_pct": 10,
+    "rolling_days": 28,
+    "calibration_races": 3
   },
   "workouts": {
     "pace_tolerance_s_per_mi": 5,

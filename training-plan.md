@@ -46,8 +46,8 @@ Paces come from the most recent race or time trial: the Oct 10 10K until the Dec
 - Mon 10/12: 5.1 easy ✅
 - Tue 10/13: 5 easy
 - Wed 10/14: 5 easy + hill sprints (6 × 8 s)
-- Thu 10/15: 4 easy
-- Fri 10/16: off
+- Thu 10/15: off (swapped with Fri)
+- Fri 10/16: 3 × 1 mi threshold (felt fresh; first workout since the 10K) ✅ 5.8 mi
 - Sat 10/17: 9 easy (long), HR < 145
 - Sun 10/18: 4 easy + hill sprints
 

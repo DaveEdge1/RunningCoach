@@ -17,6 +17,7 @@ HOME_ELEV_FT = _cfg["home"]["elevation_ft"]
 AET = _cfg["heart_rate"]["aerobic_threshold"]
 LT = _cfg["heart_rate"]["lactate_threshold"]
 MAX_HR = _cfg["heart_rate"]["max"]
+REST_HR = _cfg["heart_rate"]["resting"]
 # 5 zones anchored to AeT/LT: Z2 tops out at AeT, Z4 is the 10 bpm below LT
 ZONES = [("Z1 Recovery", 0, AET - 10), ("Z2 Aerobic", AET - 10, AET),
          ("Z3 Tempo", AET, LT - 10), ("Z4 Threshold", LT - 10, LT), ("Z5 >LT", LT, 999)]
@@ -42,7 +43,6 @@ DECOUPLE_LIMIT = _cfg["decoupling"]["limit_pct"]
 
 # Best efforts
 EFFORT_DISTANCES = _cfg["best_efforts"]["distances_m"]
-EFFORT_MIN_M = _cfg["best_efforts"]["min_m_for_fitness"]
 # A race or time trial run within this of its distance is scored whole; a longer run (warm-up and cool-down
 # recorded with it) is scored by its fastest window at the distance
 RACE_WHOLE_RUN_TOL = _cfg["best_efforts"]["race_whole_run_tolerance_pct"] / 100
@@ -59,6 +59,13 @@ def cross_kind(session):
     """Cross-training kind named in a plan session ("Grand Canyon: backpack ..." -> "hike"), or None."""
     s = session.lower()
     return next((k for k, words in CROSS_PLAN_WORDS.items() if any(re.search(rf"\b{w}(?:s|ing)?\b", s) for w in words)), None)
+
+# HR-based fitness estimate (Daniels' VO2 cost of pace / Swain's %HRmax-to-%VO2max, calibrated to races)
+HRFIT_SETTLE_S = _cfg["hr_fitness"]["lap_settle_s"]
+HRFIT_MIN_S = _cfg["hr_fitness"]["min_minutes"] * 60
+HRFIT_MAX_CV = _cfg["hr_fitness"]["max_speed_cv_pct"] / 100
+HRFIT_DAYS = _cfg["hr_fitness"]["rolling_days"]
+HRFIT_CAL_RACES = _cfg["hr_fitness"]["calibration_races"]
 
 # Workout reps
 REP_PACE_TOL = _cfg["workouts"]["pace_tolerance_s_per_mi"]

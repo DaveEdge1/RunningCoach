@@ -9,8 +9,8 @@ from pathlib import Path
 from analyze import EF_HR_BAND, EF_MIN_SECS
 from build_site import BASE_CSS, tabs
 from config import (ACUTE_DAYS, ACWR_DANGER, ACWR_SWEET, AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CHRONIC_DAYS,
-                    CROSS_DEFAULT_RATE, CROSS_NAMES, DANIELS_FLOOR_FT, DANIELS_SPM, DECOUPLE_LIMIT, DECOUPLE_MIN_S, EFFORT_MIN_M, HARD_BOUT,
-                    RACE_WHOLE_RUN_TOL,
+                    CROSS_DEFAULT_RATE, CROSS_NAMES, DANIELS_FLOOR_FT, DANIELS_SPM, DECOUPLE_LIMIT, DECOUPLE_MIN_S, HARD_BOUT,
+                    HRFIT_CAL_RACES, HRFIT_DAYS, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MAX_HR, RACE_WHOLE_RUN_TOL, REST_HR,
                     HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, RECOVERY_KM_PER_DAY, REP_DIST_TOL, REP_PACE_TOL, ROOT,
                     WORKOUT_Z5_PCT, ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race,
                     cross_kind, recovery_days, trail_days, zone_range)
@@ -21,7 +21,6 @@ TREND_MIN_RUNS = 3  # runs that must qualify in the window
 EF_ELEV_TOL_FT = 1000  # pace-at-AeT uses only runs within this of home elevation
 FRESH, TIRED = 5, -10  # form % thresholds
 RATE_DAYS = 42  # load per mile for the projection comes from this many recent days
-GOAL_EFFORTS_PER_MONTH = 3  # training efforts drawn on the fitness-vs-goal chart
 M_PER_MI = 1609.344
 FT_PER_M = 3.281
 DISTANCES = [(5000, "5K"), (10000, "10K"), (15000, "15K"), (21097.5, "Half marathon"), (42195, "Marathon")]
@@ -299,7 +298,7 @@ def races(runs, plan):
             continue  # a warm-up or cool-down recorded separately
         elev = int(r["elev_avg_ft"]) if r.get("elev_avg_ft") else (rc or {}).get("elev")
         name = rc["name"] if rc else f"{dist_label(target or meters)} {'race' if is_race else 'time trial'}"
-        cand = {"d": d, "name": name, "meters": meters, "secs": clock, "elev": elev, "gap": gap,
+        cand = {"d": d, "start": r["start"], "name": name, "meters": meters, "secs": clock, "elev": elev, "gap": gap,
                 "vdot": vdot(meters, clock), "whole": whole, "run_mi": float(r["miles"])}
         old = best.get(d)
         faster = target and cand["secs"] / cand["meters"] < old["secs"] / old["meters"] if old else True
@@ -330,16 +329,13 @@ def effort_label(meters):
 
 
 def load_efforts(runs, rc):
-    """Best efforts (data/efforts.csv), scored on grade-adjusted time, and why each can't stand in for a race
-    (empty if it can): shorter than EFFORT_MIN_M, a net grade steeper than AET_MAX_GRADE (where Minetti's running
-    model fits walking poorly), max HR below LT (not a hard effort, or a GPS glitch), or on a race / time-trial day
-    (the result itself counts). "secs" is the grade-adjusted time, so the effort's VDOT and any paces from it are
-    flat-ground equivalents; "clock" is the time as run."""
+    """Best efforts (data/efforts.csv), scored on grade-adjusted time: "secs" is the grade-adjusted time, so the
+    effort's VDOT is a flat-ground equivalent; "clock" is the time as run. A record of training, not of race fitness:
+    training efforts are submaximal by design (see fitness_basis)."""
     path = ROOT / "data" / "efforts.csv"
     if not path.exists():
         return []
     elev = {(r["date"], r["start"]): int(r["elev_avg_ft"]) if r.get("elev_avg_ft") else None for r in runs}
-    race_days = {r["d"] for r in rc}
     out = []
     with open(path, encoding="utf-8") as f:
         for e in csv.DictReader(f):
@@ -348,31 +344,73 @@ def load_efforts(runs, rc):
             el = elev.get((e["date"], e["start"]))
             net = int(e["net_elev_ft"]) if e["net_elev_ft"] else None
             mhr = int(e["max_hr"]) if e["max_hr"] else None
-            why = ("race day" if d in race_days else
-                   f"under {effort_label(EFFORT_MIN_M)}" if m < EFFORT_MIN_M - 1 else
-                   "no elevation" if net is None else
-                   "too steep to grade-adjust" if abs(net) / FT_PER_M / m > AET_MAX_GRADE else
-                   "no HR" if mhr is None else
-                   f"max HR under {LT}" if mhr < LT else "")
             out.append({"d": d, "start": e["start"], "meters": m, "secs": secs, "clock": clock, "elev": el, "net": net,
                         "hr": int(e["avg_hr"]) if e["avg_hr"] else None, "maxhr": mhr,
                         "vdot": vdot(m, secs), "sl": sl_vdot(m, secs, el if el is not None else HOME_ELEV_FT),
-                        "name": f"Best {effort_label(m)} in training", "why": why})
+                        "name": f"Best {effort_label(m)} in training"})
     return out
 
 
-def fitness_basis(rc, efforts, before=None):
-    """Current fitness: the latest race or time trial before `before`, unless a later best effort that qualifies
-    (load_efforts) has a higher sea-level VDOT; then the highest such effort. Both sides are compared on
-    grade-adjusted time, so hills count the same way in a race and in training."""
+def fitness_basis(rc, before=None):
+    """Current fitness: the latest race or time trial before `before`. Training efforts are submaximal by design,
+    so none stands in for one; the HR-based estimate (hr_fitness) shows the trend between races."""
     races_ = [r for r in rc if before is None or r["d"] < before]
-    last = races_[-1] if races_ else None
-    floor = sl_vdot(last["meters"], last["gap"], src_elev(last)) if last else 0
-    better = [e for e in efforts if not e["why"] and (before is None or e["d"] < before)
-              and (last is None or e["d"] > last["d"]) and e["sl"] > floor]
-    if better:
-        return dict(max(better, key=lambda e: e["sl"]), effort=True)
-    return last
+    return races_[-1] if races_ else None
+
+
+def hr_vo2max(gap_mps, hr):
+    """Effective VO2max (ml/kg/min) from a steady stretch: the oxygen cost of its grade-adjusted speed (Daniels'
+    equation, as in vdot) over the fraction of VO2 reserve it used, taken as equal to the fraction of HR reserve
+    (Swain & Leutholtz 1997). None outside 30-100% of HR reserve."""
+    frac = (hr - REST_HR) / (MAX_HR - REST_HR)
+    if not 0.3 <= frac <= 1:
+        return None
+    return 3.5 + (vo2(gap_mps * 60) - 3.5) / frac
+
+
+def hr_fitness(runs, rc, meters):
+    """HR-based fitness per run from data/segments.csv (steady laps, see analyze.hr_segments), calibrated to races.
+
+    A run's raw estimate is the seconds-weighted mean of hr_vo2max over its steady laps; trail runs are left out.
+    The population HR-VO2 relation doesn't fit any one runner exactly, so every estimate is scaled by the median,
+    over the last HRFIT_CAL_RACES races or time trials with steady laps, of race VDOT (grade-adjusted) / that run's
+    raw estimate, both at the race's own altitude. Each run then goes on the sea-level scale the way a race does:
+    VDOT -> time at `meters` at the run's elevation -> sea-level VDOT.
+    Returns (points, trailing HRFIT_DAYS median by date, calibration or None)."""
+    path = ROOT / "data" / "segments.csv"
+    if not path.exists():
+        return [], [], None
+    trails = trail_days()
+    info = {(r["date"], r["start"]): r for r in runs}
+    per_run = {}
+    with open(path, encoding="utf-8") as f:
+        for s in csv.DictReader(f):
+            k = (s["date"], s["start"])
+            est = hr_vo2max(float(s["gap_mps"]), float(s["avg_hr"]))
+            if est is not None and s["date"] not in trails and k in info:
+                per_run.setdefault(k, []).append((int(s["secs"]), est, float(s["gap_mps"]), float(s["avg_hr"])))
+    pts = []
+    for (d, start), ss in sorted(per_run.items()):
+        n = sum(x[0] for x in ss)
+        el = info[(d, start)].get("elev_avg_ft")
+        pts.append({"d": date.fromisoformat(d), "start": start, "secs": n, "laps": len(ss),
+                    "raw": sum(x[0] * x[1] for x in ss) / n, "elev": int(el) if el else HOME_ELEV_FT,
+                    "gap": M_PER_MI / (sum(x[0] * x[2] for x in ss) / n), "hr": sum(x[0] * x[3] for x in ss) / n})
+    by_key = {(p["d"], p["start"]): p for p in pts}
+    cal = [(r, vdot(r["meters"], r["gap"]) / by_key[(r["d"], r["start"])]["raw"])
+           for r in rc if (r["d"], r["start"]) in by_key][-HRFIT_CAL_RACES:]
+    k = statistics.median(c for _, c in cal) if cal else 1.0
+    cal_keys = {(r["d"], r["start"]) for r, _ in cal}
+    for p in pts:
+        p["v"] = k * p["raw"]
+        p["sl"] = sl_vdot(meters, predict(p["v"], meters), p["elev"])
+        p["race"] = (p["d"], p["start"]) in cal_keys
+    trend = {}
+    for p in pts:
+        win = [q["sl"] for q in pts if p["d"] - timedelta(HRFIT_DAYS) < q["d"] <= p["d"]]
+        if len(win) >= 3:
+            trend[p["d"]] = {"d": p["d"], "v": statistics.median(win), "n": len(win)}
+    return pts, list(trend.values()), ({"k": k, "races": [r for r, _ in cal]} if cal else None)
 
 
 def decoupling_points(runs, plan, rc):
@@ -434,7 +472,7 @@ def rep_target(session, basis, elev, nr):
     return None
 
 
-def workouts(runs, plan, rc, efforts, nr):
+def workouts(runs, plan, rc, nr):
     """Planned workouts with reps ("N × D"), matched to laps: the N fastest laps within REP_DIST_TOL of D.
     Rep pace is judged on grade-adjusted pace against the target at the run's elevation, from the fitness basis
     as of that day."""
@@ -459,7 +497,7 @@ def workouts(runs, plan, rc, efforts, nr):
                 best = (r, reps)
         r, reps = best
         elev = int(r["elev_avg_ft"]) if r.get("elev_avg_ft") else HOME_ELEV_FT
-        tgt = rep_target(p["session"], fitness_basis(rc, efforts, d), elev, nr)
+        tgt = rep_target(p["session"], fitness_basis(rc, d), elev, nr)
         rows = []
         for l in reps:
             gap = clock_secs(l["gap"]) if l.get("gap") else clock_secs(l["pace"])
@@ -484,10 +522,6 @@ def acwr_word(x):
 
 def basis_phrase(b):
     when = f'{b["d"]:%b} {b["d"].day}, {ft(b["elev"]) or "elevation unknown"}'
-    if b.get("effort"):
-        return (f'a training run, not a race: your best {effort_label(b["meters"])} on {when} ({hms(b["clock"])}, '
-                f'{hms(b["secs"])} grade-adjusted) beat '
-                f'your last race or time trial (sea-level VDOT {b["sl"]:.1f}). See Best efforts')
     return f'your most recent race or time trial ({html.escape(b["name"])}, {when})'
 
 
@@ -583,7 +617,7 @@ def build(plan, built):
     if now["acwr"] is not None:
         tiles.append(tile("Load ramp", f"{now['acwr']:.2f}",
                           f"{ACUTE_DAYS}-day ÷ {CHRONIC_DAYS}-day load · {acwr_word(now['acwr'])}"))
-    best = fitness_basis(rc, efforts)
+    best = fitness_basis(rc)
 
     def vrange(lo, hi):
         return f"{lo:.1f}" if f"{lo:.1f}" == f"{hi:.1f}" else f"{lo:.1f}–{hi:.1f}"
@@ -760,7 +794,7 @@ def build(plan, built):
             f'<span><i class="band bad"></i>Danger zone ≥ {ACWR_DANGER:g}</span></div>\n</section>')
 
     # workouts vs. targets
-    wo = workouts(runs, plan, rc, efforts, nr)
+    wo = workouts(runs, plan, rc, nr)
 
     def target_txt(t, elev, basis):
         if not t:
@@ -780,7 +814,7 @@ def build(plan, built):
         wo_parts.append(f'<p class="note"><b>Next: {d:%a %b} {d.day}, {html.escape(p["session"])}</b>. Target: '
                         f'{target_txt(rep_target(p["session"], best, el, nr), el, best)}.</p>')
     for w in reversed(wo):
-        b = fitness_basis(rc, efforts, w["d"])
+        b = fitness_basis(rc, w["d"])
         reps = w["reps"]
         n_on = sum(r["paceOk"] == "on" for r in reps)
         n_over = sum(r["hrOk"] is False for r in reps)
@@ -824,7 +858,7 @@ def build(plan, built):
             el = src_elev(r)
             race_eff.append({"d": r["d"], "meters": r["meters"], "secs": r["gap"], "clock": r["secs"], "elev": r["elev"],
                              "net": None, "maxhr": maxhr.get(r["d"]), "sl": sl_vdot(r["meters"], r["gap"], el),
-                             "why": "", "race": r["name"]})
+                             "race": r["name"]})
         for m in sorted({e["meters"] for e in efforts}):
             at = [e for e in efforts if e["meters"] == m] + [
                 r for r in race_eff if abs(r["meters"] - m) <= m * RACE_WHOLE_RUN_TOL]
@@ -841,42 +875,33 @@ def build(plan, built):
                     f"<td>{hms(e['clock'])}</td><td>{hms(e['secs'])}</td><td>{mmss(e['secs'] / (m / M_PER_MI))}</td>"
                     f"<td>{e['d']:%b} {e['d'].day}</td><td>{ft(e['elev'])}</td><td>{net}</td>"
                     f"<td>{e['maxhr'] or ''}</td><td>{e['sl']:.1f}</td>"
-                    f"<td>{'race result: ' + e['race'] if e.get('race') else e['why'] or 'yes'}</td></tr>")
+                    f"<td>{'race result: ' + html.escape(e['race']) if e.get('race') else 'training'}</td></tr>")
         eff_html = (
             '\n<section class="card"><h2>Best efforts</h2>\n'
             '<p class="note">Fastest grade-adjusted time over each distance inside any run, in the last 28 days and in all '
             'data ("Both" when one effort is best in both). Grade adjustment (Minetti) turns each stretch into its flat-ground '
             'equivalent, so a downhill stretch is slowed and a hilly one credited; the VDOT is on that time, at sea level, so '
-            'efforts at different elevations compare fairly. These are training efforts, usually not all-out. One can stand '
-            'in for a race only if it comes after your latest race or time trial and beats it (the race grade-adjusted too), '
-            f'is at least {effort_label(EFFORT_MIN_M)}, has a net grade under {AET_MAX_GRADE:.0%}, and reaches LT ({LT} bpm).</p>\n'
+            'efforts at different elevations compare fairly. A training window can hold recoveries (a whole interval '
+            'session inside a 5K window) and is run below race effort by design, so it is a record, not race fitness: '
+            'only races and time trials set current fitness.</p>\n'
             '<div class="scroll"><table class="t full"><thead><tr><th>Distance</th><th>Period</th><th>Time</th>'
             '<th>Grade-adj.</th><th>Pace (adj.)</th>'
             '<th>Date</th><th>Elevation</th><th>Net elev. (ft)</th><th>Max HR</th><th>VDOT (sea level)</th>'
-            f'<th>Counts for race fitness</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>\n</section>')
+            f'<th>Source</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>\n</section>')
 
     # fitness vs. goal (sea-level VDOT)
     goal = None
     if nr and nr["goal_secs"] and nr["elev"] is not None:
-        per_run = {}  # best hard effort (max HR at LT or above) per run, from EFFORT_MIN_M up; races plot as races
-        for e in efforts:
-            k = (e["d"], e["start"])
-            hard = e["maxhr"] is not None and e["maxhr"] >= LT and e["why"] != "race day"
-            if hard and e["meters"] >= EFFORT_MIN_M - 1 and (k not in per_run or e["sl"] > per_run[k]["sl"]):
-                per_run[k] = e
-        by_month = {}  # then only the top few per calendar month, so easy-day efforts don't flatten the y-axis
-        for e in per_run.values():
-            by_month.setdefault((e["d"].year, e["d"].month), []).append(e)
-        top = [e for es in by_month.values() for e in sorted(es, key=lambda e: -e["sl"])[:GOAL_EFFORTS_PER_MONTH]]
-        if len(top) >= 4:  # drop slow outliers below Tukey's lower fence (Q1 - 1.5 IQR); fast ones are the signal
-            q1, _, q3 = statistics.quantiles([e["sl"] for e in top], n=4, method="inclusive")
-            top = [e for e in top if e["sl"] >= q1 - 1.5 * (q3 - q1)]
+        hpts, htrend, hcal = hr_fitness(runs, rc, nr["meters"])
+        cal_names = ", ".join(f"{html.escape(r['name'])} ({r['d']:%b} {r['d'].day})" for r in hcal["races"]) if hcal else ""
         goal = {"v": round(sl_vdot(nr["meters"], nr["goal_secs"], nr["elev"]), 2), "race": nr["date"].isoformat(),
                 "name": nr["name"], "t": hms(nr["goal_secs"]),
                 "races": [{"d": r["d"].isoformat(), "v": round(sl_vdot(r["meters"], r["secs"], src_elev(r)), 2),
                            "name": r["name"], "t": hms(r["secs"])} for r in rc],
-                "efforts": [{"d": e["d"].isoformat(), "v": round(e["sl"], 2), "name": effort_label(e["meters"]),
-                             "t": f"{hms(e['clock'])} ({hms(e['secs'])} grade-adjusted)", "why": e["why"]} for e in top],
+                "hr": [{"d": p["d"].isoformat(), "v": round(p["sl"], 2), "gap": mmss(p["gap"]), "hr": round(p["hr"]),
+                        "min": round(p["secs"] / 60), "laps": p["laps"], "race": p["race"]} for p in hpts],
+                "hrTrend": [{"d": t["d"].isoformat(), "v": round(t["v"], 2), "n": t["n"]} for t in htrend],
+                "hrDays": HRFIT_DAYS,
                 "basis": {"d": best["d"].isoformat(), "v": round(sl_vdot(best["meters"], best["secs"], src_elev(best)), 2)}
                 if best else None}
         tt = next_time_trial(plan, today, nr["date"])
@@ -886,12 +911,16 @@ def build(plan, built):
         '\n<section class="card"><h2>Fitness vs. goal</h2>\n'
         f'<p class="note">Sea-level VDOT over time. The goal ({goal["t"]} at {ft(nr["elev"])}) needs a sea-level VDOT of {goal["v"]:.1f}. '
         'The dotted line is steady progress from current fitness to the goal on race day, the same path the checkpoint '
-        f'uses. Training best efforts are the top {GOAL_EFFORTS_PER_MONTH} per month (best per run, '
-        f'{effort_label(EFFORT_MIN_M)} and up, from runs that reached LT), leaving out slow outliers (below Tukey\'s '
-        'lower fence, Q1 − 1.5 × IQR). They are usually not all-out, so they sit below race fitness.</p>\n'
+        'uses. Races and time trials are measured results. Between them, each small dot is an <b>HR-based estimate</b> '
+        'from one run\'s steady laps (pace and HR together, so it works on easy days and workouts alike, without an '
+        f'all-out effort), and the line is their median over the trailing {HRFIT_DAYS} days. '
+        + (f'Estimates are calibrated to {cal_names} (× {hcal["k"]:.3f}), so they match race results on average; a second race or time trial will firm that up. '
+           if hcal else 'No race or time trial with steady laps yet, so estimates are uncalibrated. ')
+        + 'Single runs are noisy (heat, fatigue, sleep and HR drift raise HR); read the line. See About for the method.</p>\n'
         '<div class="chart" id="cGoal"></div>\n'
         '<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span>'
-        '<span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>Training best effort</span>'
+        '<span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>HR-based estimate (one run)</span>'
+        f'<span><span class="ln" style="background:var(--s7)"></span>{HRFIT_DAYS}-day median</span>'
         '<span><span class="dt" style="background:var(--s2)"></span>Goal race</span>'
         '<span><span class="ln" style="background:var(--s2)"></span>Goal</span>'
         '<span><span class="ln dot"></span>On-track path</span></div>\n</section>')
@@ -934,13 +963,22 @@ def build(plan, built):
         f"<p><b>Zones</b> come from config.json: LT1 (AeT) {AET} bpm and LT2 (LT) {LT} bpm. "
         "The intensity chart puts wider breaks at those two thresholds.</p>\n"
         "<p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race (races.csv, or a planned race) or time trial "
-        "(a planned session named \"time trial\"). A training best effort replaces it when it comes later and has a higher "
-        f"sea-level VDOT, is at least {effort_label(EFFORT_MIN_M)}, reaches LT ({LT} bpm) as a check on GPS glitches, and "
-        f"has a net grade under {AET_MAX_GRADE:.0%}. That comparison uses grade-adjusted time (Minetti) for both the effort "
-        "and the race, so hills count the same way in each; a winning effort's paces are flat-ground equivalents. "
-        "Race results themselves show actual times. "
+        "(a planned session named \"time trial\"). Training efforts never replace it: they are run below race effort by design, "
+        "and a fastest window can include recoveries. "
         "The next-race estimate uses that current fitness with no projected gains. "
         "Elevation comes from the run's own file.</p>\n"
+        "<p><b>HR-based estimate</b> (Fitness vs. goal) estimates fitness from pace and HR together, so any steady running "
+        "counts. Each steady lap gives an effective VO2max: the oxygen cost of its grade-adjusted pace (Daniels' equation, "
+        "the one inside VDOT) divided by the share of VO2 reserve it used, which Swain &amp; Leutholtz (1997, Med Sci Sports "
+        f"Exerc 29:410) found equal to the share of HR reserve (resting {REST_HR}, max {MAX_HR} bpm, from config.json). "
+        f"A steady lap leaves out its first {HRFIT_SETTLE_S // 60} minutes (HR still catching up with pace), the run's first "
+        f"{AET_WARMUP_S // 60} minutes, everything after {AET_MAX_S // 60} minutes (cardiac drift), grades over "
+        f"{AET_MAX_GRADE:.0%}, and laps after a hard bout that aren't hard themselves (HR stays raised on jogs and "
+        f"cool-downs). It needs {HRFIT_MIN_S // 60} minutes left and grade-adjusted speed that varies less than "
+        f"{HRFIT_MAX_CV:.0%} (no strides or surges). Trail runs are left out. A population formula doesn't fit one runner "
+        f"exactly, so estimates are scaled to match your last {HRFIT_CAL_RACES} races or time trials (Runalyze calibrates "
+        "its effective VO2max the same way), then converted to sea level like a race. Lap each rep so a workout's reps "
+        "and jogs land in separate laps.</p>\n"
         f"<p><b>Load ramp</b> is the acute:chronic workload ratio: load over the last {ACUTE_DAYS} days divided by the weekly "
         f"average over the last {CHRONIC_DAYS}. "
         '<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4789704">Gabbett (2016, Br J Sports Med 50:273)</a> calls '
@@ -1442,7 +1480,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   }
   function goalChart() {
     var G = D.goal; if (!G) return;
-    var all = G.races.concat(G.efforts), ds = all.map(function (p) { return day(p.d); }).concat([day(D.today)]);
+    var all = G.races.concat(G.hr), ds = all.map(function (p) { return day(p.d); }).concat([day(D.today)]);
     var a = Math.min.apply(null, ds) - 4, b = day(G.race) + 5;
     var vs = all.map(function (p) { return p.v; }).concat([G.v]);
     var lo = Math.floor(Math.min.apply(null, vs)) - 1, hi = Math.ceil(Math.max.apply(null, vs)) + 1, step = hi - lo > 10 ? 2 : 1, ticks = [];
@@ -1463,10 +1501,16 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
         hover(f, c, "<b>" + fmtDate(G.tt.d) + "</b> · " + G.tt.name + "<br>On track: VDOT " + tv.toFixed(1), 4);
       }
     }
-    G.efforts.forEach(function (p) {
-      var c = dot(f, f.X(day(p.d) + .5), f.Y(p.v), 4, false);
-      hover(f, c, "<b>" + fmtDate(p.d) + "</b> · best " + p.name + " in training<br>" + p.t + " · VDOT " + p.v.toFixed(1) +
-        "<br>" + (p.why ? "Doesn't count for race fitness: " + p.why : "Qualifies to stand in for a race"), 4);
+    if (G.hrTrend.length > 1)  // under the dots, so each run keeps its own tooltip
+      el("path", { d: linePath(f, G.hrTrend.map(function (t) { return [day(t.d) + .5, t.v]; })), fill: "none", stroke: "var(--s7)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
+    var med = {};
+    G.hrTrend.forEach(function (t) { med[t.d] = t; });
+    G.hr.forEach(function (p) {
+      var c = dot(f, f.X(day(p.d) + .5), f.Y(p.v), 3.5, false), t = med[p.d];
+      hover(f, c, "<b>" + fmtDate(p.d) + "</b> · HR-based estimate<br>" + p.min + " min in " + p.laps + " steady lap" +
+        (p.laps > 1 ? "s" : "") + " · " + p.gap + "/mi grade-adjusted at " + p.hr + " bpm<br>VDOT " + p.v.toFixed(1) +
+        " (sea level)" + (p.race ? " · race, sets the calibration" : "") +
+        (t ? "<br>" + G.hrDays + "-day median " + t.v.toFixed(1) + " (" + t.n + " runs)" : ""), 3.5);
     });
     G.races.forEach(function (p) {
       var c = dot(f, f.X(day(p.d) + .5), f.Y(p.v), 5.5, true, "--s1");
