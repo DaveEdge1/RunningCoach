@@ -918,7 +918,7 @@ def build(plan, built):
         f'all-out effort). The line is their median over the trailing {HRFIT_DAYS} days and the band holds the middle half of them, so a run outside the band is day-to-day noise (sleep, fatigue, a few beats of sensor error), not a change in fitness. '
         + (f'Estimates are calibrated to {cal_names} (× {hcal["k"]:.3f}), so they match race results on average; a second race or time trial will firm that up. '
            if hcal else 'No race or time trial with steady laps yet, so estimates are uncalibrated. ')
-        + 'Single runs are noisy (heat, fatigue, sleep and HR drift raise HR); read the line. See About for the method.</p>\n'
+        + 'See About for the method.</p>\n'
         '<div class="chart" id="cGoal"></div>\n'
         '<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span>'
         '<span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>HR-based estimate (one run)</span>'
