@@ -20,5 +20,5 @@ _The scripts read thresholds from `config.json`. Update both when they change._
 
 ## Injury history / constraints
 - Knee trouble in 2025. Hill sprints 2×/week appear to have fixed it, so keep them in every week.
-- Currently runs 5 days/week and wants to move to 6. Target volume is 40 mi/wk.
+- Currently runs 5 days/week and wants to move to 6. Target volume is 45 mi/wk (raised from 40 on 2026-10-17).
 - All training is in Flagstaff.
