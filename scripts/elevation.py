@@ -8,7 +8,7 @@ midpoint sits more than TOL_M off the straight line between its ends, down to MI
 steady grades get few points; short steep hills get dense ones.
 
 Each run is looked up once and cached in data/elev.csv as elevation vs distance (no coordinates),
-so the daily GitHub update only queries new runs. If the service fails or a run has no GPS, callers
+so the scheduled GitHub update only queries new runs. If the service fails or a run has no GPS, callers
 fall back to the barometer.
 """
 import bisect, csv, json, urllib.parse, urllib.request

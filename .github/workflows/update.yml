@@ -1,11 +1,11 @@
-# Daily: pull new runs from intervals.icu, re-analyze, rebuild the site, and commit.
+# Hourly (6 am–9 pm Arizona): pull new runs from intervals.icu, re-analyze, rebuild the site, and commit.
 # data/runs.csv and data/laps.csv are the permanent record; FIT files are downloaded
 # fresh on the runner and never committed.
-name: Daily update
+name: Update
 
 on:
   schedule:
-    - cron: "0 19 * * *"  # 12:00 Arizona (UTC-7, no daylight saving)
+    - cron: "0 13-23,0-4 * * *"  # hourly 6:00–21:00 Arizona (UTC-7, no daylight saving)
   workflow_dispatch:
 
 permissions:
