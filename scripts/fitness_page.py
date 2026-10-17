@@ -376,7 +376,7 @@ def hr_fitness(runs, rc, meters):
     over the last HRFIT_CAL_RACES races or time trials with steady laps, of race VDOT (grade-adjusted) / that run's
     raw estimate, both at the race's own altitude. Each run then goes on the sea-level scale the way a race does:
     VDOT -> time at `meters` at the run's elevation -> sea-level VDOT.
-    Returns (points, trailing HRFIT_DAYS median by date, calibration or None)."""
+    Returns (points, HRFIT_DAYS median centered on each run, calibration or None)."""
     path = ROOT / "data" / "segments.csv"
     if not path.exists():
         return [], [], None
@@ -405,9 +405,11 @@ def hr_fitness(runs, rc, meters):
         p["v"] = k * p["raw"]
         p["sl"] = sl_vdot(meters, predict(p["v"], meters), p["elev"])
         p["race"] = (p["d"], p["start"]) in cal_keys
-    trend = {}
-    for p in pts:
-        win = [q["sl"] for q in pts if p["d"] - timedelta(HRFIT_DAYS) < q["d"] <= p["d"]]
+    trend, half = {}, timedelta(HRFIT_DAYS / 2)
+    for p in pts:  # centered window; only where all of it is in the data, so the line stops half a window short
+        if not pts or p["d"] - half < pts[0]["d"] or p["d"] + half > date.today():
+            continue
+        win = [q["sl"] for q in pts if p["d"] - half <= q["d"] <= p["d"] + half]
         if len(win) >= 3:
             q1, med, q3 = statistics.quantiles(win, n=4, method="inclusive")
             trend[p["d"]] = {"d": p["d"], "v": med, "q1": q1, "q3": q3, "n": len(win)}
@@ -915,7 +917,7 @@ def build(plan, built):
         'The dotted line is steady progress from current fitness to the goal on race day, the same path the checkpoint '
         'uses. Races and time trials are measured results. Between them, each small dot is an <b>HR-based estimate</b> '
         'from one run\'s steady laps (pace and HR together, so it works on easy days and workouts alike, without an '
-        f'all-out effort). The line is their median over the trailing {HRFIT_DAYS} days and the band holds the middle half of them, so a run outside the band is day-to-day noise (sleep, fatigue, a few beats of sensor error), not a change in fitness. '
+        f'all-out effort). The line is their median over {HRFIT_DAYS} days centered on each run (so it stops {HRFIT_DAYS // 2} days short of today) and the band holds the middle half of them, so a run outside the band is day-to-day noise (sleep, fatigue, a few beats of sensor error), not a change in fitness. '
         + (f'Estimates are calibrated to {cal_names} (× {hcal["k"]:.3f}), so they match race results on average; a second race or time trial will firm that up. '
            if hcal else 'No race or time trial with steady laps yet, so estimates are uncalibrated. ')
         + 'See About for the method.</p>\n'
@@ -1519,7 +1521,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
       hover(f, c, "<b>" + fmtDate(p.d) + "</b> · HR-based estimate<br>" + p.min + " min in " + p.laps + " steady lap" +
         (p.laps > 1 ? "s" : "") + " · " + p.gap + "/mi grade-adjusted at " + p.hr + " bpm<br>VDOT " + p.v.toFixed(1) +
         " (sea level)" + (p.race ? " · race, sets the calibration" : "") +
-        (t ? "<br>" + G.hrDays + "-day median " + t.v.toFixed(1) + ", middle 50% " + t.q1.toFixed(1) + "–" + t.q3.toFixed(1) + " (" + t.n + " runs)" : ""), 3.5);
+        (t ? "<br>" + G.hrDays + "-day median (centered) " + t.v.toFixed(1) + ", middle 50% " + t.q1.toFixed(1) + "–" + t.q3.toFixed(1) + " (" + t.n + " runs)" : ""), 3.5);
     });
     G.races.forEach(function (p) {
       var c = dot(f, f.X(day(p.d) + .5), f.Y(p.v), 5.5, true, "--s1");
