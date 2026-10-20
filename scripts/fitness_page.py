@@ -83,6 +83,27 @@ def load_cross():
         return list(csv.DictReader(f))
 
 
+def prior_miles(first):
+    """{date: miles} from data/prior_weeks.csv (Mon-Sun totals David reported for weeks before the recorded data),
+    for the 12- and 26-week averages only. A week's miles go evenly on its days before `first`; a week that overlaps the
+    recorded runs adds only what they don't already cover."""
+    path = ROOT / "data" / "prior_weeks.csv"
+    if not path.exists():
+        return {}
+    out = {}
+    with open(path, encoding="utf-8") as f:
+        for w in csv.DictReader(f):
+            wk0 = date.fromisoformat(w["week"])
+            days = [wk0 + timedelta(i) for i in range(7) if wk0 + timedelta(i) < first]
+            for d in days:
+                out[d] = float(w["miles"]) / len(days)
+    return out
+
+
+def recorded_week_miles(runs, wk0):
+    return sum(float(r["miles"]) for r in runs if 0 <= (date.fromisoformat(r["date"]) - wk0).days < 7)
+
+
 def series(runs, end, planned=None, cross=()):
     """Daily miles, load, long-term/recent load, form, and acute:chronic ratio from the first run through `end`.
     Cross-training adds load (also kept as xload) but no miles. `planned` ({date: (miles, run load, cross load)})
@@ -108,6 +129,14 @@ def series(runs, end, planned=None, cross=()):
             miles[d] += mi
             load[d] += ld + xl
             xload[d] += xl
+    # weeks before the recorded data (data/prior_weeks.csv) count toward the 12-week average only
+    prior = prior_miles(first)
+    for wk0 in {d - timedelta(d.weekday()) for d in prior}:
+        days_ = [d for d in prior if d - timedelta(d.weekday()) == wk0]
+        left = max(0.0, sum(prior[d] for d in days_) - recorded_week_miles(runs, wk0))
+        for d in days_:
+            prior[d] = left / len(days_)
+    covered = min(prior, default=first)
     # seed both averages with the first 4 weeks' mean so history doesn't start from zero
     seed = sum(load[d] for d in days[:28]) / min(28, len(days))
     ctl = atl = seed
@@ -118,12 +147,19 @@ def series(runs, end, planned=None, cross=()):
         atl += (load[d] - atl) / ATL_DAYS
         r7 = sum(miles[days[j]] for j in range(max(0, i - 6), i + 1))
         r28 = sum(miles[days[j]] for j in range(max(0, i - 27), i + 1)) / 4
+        r84 = (sum(miles[days[j]] for j in range(max(0, i - 83), i + 1))
+               + sum(v for k, v in prior.items() if (d - k).days < 84)) / 12
+        r182 = (sum(miles[days[j]] for j in range(max(0, i - 181), i + 1))
+                + sum(v for k, v in prior.items() if (d - k).days < 182)) / 26
         acute = sum(load[days[j]] for j in range(max(0, i - ACUTE_DAYS + 1), i + 1))
         chronic = sum(load[days[j]] for j in range(max(0, i - CHRONIC_DAYS + 1), i + 1)) * ACUTE_DAYS / CHRONIC_DAYS
         out.append({"d": d.isoformat(), "mi": round(miles[d], 2), "load": round(load[d]), "xload": round(xload[d]),
                     "ctl": round(ctl, 1), "atl": round(atl, 1), "form": round(ctl - atl, 1),
                     "formPct": round(form_pct, 1), "r7": round(r7, 1),
                     "r28": round(r28, 1) if i >= 27 else None,
+                    "r84": round(r84, 1) if (d - covered).days >= 83 else None,
+                    # no running before the first reported week, so it starts with the 12-week line
+                    "r182": round(r182, 1) if (d - covered).days >= 83 else None,
                     "acwr": round(acute / chronic, 2) if i >= CHRONIC_DAYS - 1 and chronic else None,
                     "plan": d in planned})
     return out
@@ -1004,11 +1040,14 @@ def build(plan, built):
         '<a href="https://www.ustfccca.org/assets/ncaa-info/2009-outdoor-alt-adjust.pdf">NCAA 2009 altitude tables</a>: '
         "% added by venue altitude (0–7,703 ft) for the mile, 5K and 10K, interpolated by altitude and distance, and held at "
         "the nearest of those distances outside that span. Neither accounts for acclimatization.</p>")
+    pfrom = min(prior_miles(date.max), default=date.fromisoformat(daily[0]["d"]))
+    md = lambda d: f"{d:%b} {d.day}"
     subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("fitness.html"), "TILES": f'<div class="tgroups">{"".join(tiles)}</div>', "RACE": race_html,
             "AHEAD": ahead_html, "WORKOUTS": wo_html, "EFFORTS": eff_html, "GOAL": goal_html,
             "WEEK_ROWS": wk_rows, "DATA": json.dumps(data, separators=(",", ":")),
             "NEXT": next_html, "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
-            "HOME_ELEV": f"{HOME_ELEV_FT:,}", "TREND_DAYS": str(TREND_DAYS), "CTL": str(CTL_DAYS), "ATL": str(ATL_DAYS), "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
+            "HOME_ELEV": f"{HOME_ELEV_FT:,}", "TREND_DAYS": str(TREND_DAYS), "CTL": str(CTL_DAYS),
+            "PRIOR_FROM": md(pfrom), "ATL": str(ATL_DAYS), "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
             "ZLEG": "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
                     + '<span><span class="ln brk"></span>LT1 / LT2 break</span>'}
     page = TEMPLATE
@@ -1116,10 +1155,10 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   <button id="rLatest">Latest</button>
   <span class="dim">Drag a chart to scroll</span>
 </div>
-<section class="card"><h2>Weekly mileage</h2>
-<p class="note">Mon–Sun totals, with the 28-day rolling average (mi/wk).</p>
+<section class="card"><h2>Mileage</h2>
+<p class="note">Mon–Sun totals, with 28-day, 12-week and 26-week rolling averages (mi/wk). The longer averages are the slower layer: aerobic base built over months. They include the weekly totals from before the recorded data (data/prior_weeks.csv, from %%PRIOR_FROM%%).</p>
 <div class="chart" id="cMiles"></div>
-<div class="legend"><span><i style="background:var(--s1)"></i>Weekly miles</span><span><span class="ln" style="background:var(--s2)"></span>28-day average</span></div>
+<div class="legend"><span><i style="background:var(--s1)"></i>Weekly miles</span><span><span class="ln" style="background:var(--s2)"></span>28-day average</span><span><span class="ln" style="background:var(--s7)"></span>12-week average</span><span><span class="ln" style="background:var(--muted)"></span>26-week average</span></div>
 </section>
 
 <section class="card"><h2>Training load</h2>
@@ -1238,7 +1277,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   function fmtDay(d) { var t = new Date(d * 864e5); return MON[t.getUTCMonth()] + " " + t.getUTCDate(); }
 
   function miles() {
-    var mx = Math.max.apply(null, D.weeks.map(function (w) { return w.mi; }).concat(D.daily.map(function (x) { return x.r28 || 0; })));
+    var mx = Math.max.apply(null, D.weeks.map(function (w) { return w.mi; }).concat(D.daily.map(function (x) { return Math.max(x.r28 || 0, x.r84 || 0, x.r182 || 0); })));
     var top = Math.ceil(mx / 10) * 10, ticks = []; for (var v = 0; v <= top; v += 10) ticks.push(v);
     // at the latest date, pad right so the current (partial) week bar, drawn mid-week, stays visible
     var f = frame("cMiles", x0, x1 + (x1 >= LAST ? 4 : 0), 0, top, ticks, function (v) { return v; });
@@ -1248,10 +1287,12 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
       var cx = f.X(day(w.w) + 3.5);
       el("path", { d: colPath(cx - bw / 2, bw, f.Y(w.mi), f.Y(0)), fill: "var(--s1)", opacity: w.partial ? .45 : 1 }, f.svg);
     });
-    var pts = D.daily.filter(function (x) { return x.r28 != null; }).map(function (x) { return [day(x.d) + .5, x.r28]; });
-    el("path", { d: linePath(f, pts), fill: "none", stroke: "var(--s2)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
-    var last = pts[pts.length - 1];
-    if (last) el("circle", { cx: f.X(last[0]), cy: f.Y(last[1]), r: 4, fill: "var(--s2)", stroke: "var(--card)", "stroke-width": 2 }, f.svg);
+    [["r182", "--muted"], ["r84", "--s7"], ["r28", "--s2"]].forEach(function (s) {
+      var pts = D.daily.filter(function (x) { return x[s[0]] != null; }).map(function (x) { return [day(x.d) + .5, x[s[0]]]; });
+      el("path", { d: linePath(f, pts), fill: "none", stroke: "var(" + s[1] + ")", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
+      var last = pts[pts.length - 1];
+      if (last) el("circle", { cx: f.X(last[0]), cy: f.Y(last[1]), r: 4, fill: "var(" + s[1] + ")", stroke: "var(--card)", "stroke-width": 2 }, f.svg);
+    });
     var hl = el("rect", { "class": "hl", y: f.m.t, height: f.H - f.m.t - f.m.b, width: band, display: "none" }, f.svg);
     D.weeks.forEach(function (w) {
       var xs = f.X(day(w.w)), end = D.daily.filter(function (x) { return day(x.d) <= day(w.w) + 6; }).pop();
@@ -1259,7 +1300,9 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
       hit.addEventListener("pointermove", function (ev) {
         hl.setAttribute("x", xs); hl.removeAttribute("display");
         showTip("<b>Week of " + fmtDate(w.w) + (w.partial ? " (so far)" : "") + "</b><br>" + sw("--s1") + w.mi + " mi · " + w.runs + " runs" +
-          (end && end.r28 != null ? "<br>" + sw("--s2") + "28-day avg " + end.r28 + " mi/wk" : ""), ev);
+          (end && end.r28 != null ? "<br>" + sw("--s2") + "28-day avg " + end.r28 + " mi/wk" : "") +
+          (end && end.r84 != null ? "<br>" + sw("--s7") + "12-week avg " + end.r84 + " mi/wk" : "") +
+          (end && end.r182 != null ? "<br>" + sw("--muted") + "26-week avg " + end.r182 + " mi/wk" : ""), ev);
       });
       hit.addEventListener("pointerleave", function () { hl.setAttribute("display", "none"); hideTip(); });
     });
