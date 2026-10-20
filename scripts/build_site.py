@@ -363,11 +363,51 @@ def total_html(pm, am, wk0):
     return f'<b>{fmt_mi(round(am, 1))}</b>' + (f'<small>of {fmt_mi(pm)} planned</small>' if pm else "<small>mi</small>")
 
 
-# ---------- month view ----------
+DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+# ---------- month view: a traditional grid, fitted to the screen ----------
 
 def month_cell(d, plan, act, month):
     p, a = plan.get(d), act.get(d)
-    parts = [f'<div class="dnum"><span class="wd">{d:%a}</span> {d.day}</div>']
+    parts = [f'<span class="mn">{d.day}</span>']
+    if p and p["type"] != "off":
+        mi = float(p["miles"])
+        parts.append(f'<span class="mp"><span class="ml">{TYPES.get(p["type"], p["type"])}</span>'
+                     f'{f" {fmt_mi(mi)}" if mi else ""}</span>')
+    if a:
+        parts.append(f'<span class="ma">✓ {fmt_mi(round(a["miles"], 1))}</span>')
+    elif missed(d, plan):
+        parts.append('<span class="ma miss">missed</span>')
+    cross_on(d)  # loads _cross
+    for c in _cross.get(d, []):
+        parts.append(f'<span class="ma">✓ {CROSS_NAMES[c["kind"]].lower()}</span>')
+    title = f' title="{html.escape(p["session"])}"' if p else ""
+    cls = "mc" + (" other" if d.month != month else "") + (f" t-{p['type']}" if p else "")
+    return (f'<div class="{cls}" data-date="{d}" data-week="{d - timedelta(d.weekday())}"'
+            f'{title}>{"".join(parts)}</div>')
+
+
+def month_html(year, month, plan, act):
+    wks = calendar.Calendar(firstweekday=0).monthdatescalendar(year, month)
+    cells = []
+    for wk in wks:
+        cells += [month_cell(d, plan, act, month) for d in wk]
+        pm, am = week_totals(wk, plan, act)
+        tot = (f"<b>{fmt_mi(pm)}</b><small>plan</small>" if wk[0] > date.today() else
+               f"<b>{fmt_mi(round(am, 1))}</b>" + (f"<small>/ {fmt_mi(pm)}</small>" if pm else "")) if pm or am else ""
+        cells.append(f'<div class="mwk" data-week="{wk[0]}">{tot}</div>')
+    head = "".join(f'<div class="mh">{n}</div>' for n in DAY_NAMES + ["Week"])
+    return (f'<section class="view mview" data-view="month" data-key="{year}-{month:02d}" hidden>'
+            f'<h2>{calendar.month_name[month]} {year}</h2>'
+            f'<div class="mgrid" style="--rows:{len(wks)}">{head}{"".join(cells)}</div></section>')
+
+
+# ---------- week view: one week, a card per day with its HR curve ----------
+
+def week_cell(d, plan, act):
+    p, a = plan.get(d), act.get(d)
+    parts = [f'<div class="dnum"><span class="wd">{d:%a}</span> {d:%b} {d.day}</div>']
     if p:
         parts.append(plan_html(p))
     if a:
@@ -375,23 +415,33 @@ def month_cell(d, plan, act, month):
     elif missed(d, plan):
         parts.append('<div class="act missed">not recorded</div>')
     parts.append(cross_on(d))
-    return f'<div class="{day_classes(d, plan, month)}" data-date="{d}">{"".join(parts)}</div>'
+    return f'<div class="{day_classes(d, plan)}" data-date="{d}">{"".join(parts)}</div>'
 
 
-def month_html(year, month, plan, act):
-    rows = []
-    for wk in calendar.Calendar(firstweekday=0).monthdatescalendar(year, month):
-        cells = "".join(month_cell(d, plan, act, month) for d in wk)
-        pm, am = week_totals(wk, plan, act)
-        empty = "" if any(d in plan or d in act for d in wk if d.month == month) else " empty"
-        rows.append(f'<div class="week{empty}" data-week="{wk[0]}">{cells}'
-                    f'<div class="wk" data-week="{wk[0]}"><span class="wd">Week</span>{total_html(pm, am, wk[0])}</div></div>')
-    head = "".join(f"<div>{n}</div>" for n in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Week"])
-    return (f'<section class="month"><h2>{calendar.month_name[month]} {year}</h2>'
-            f'<div class="head">{head}</div>{"".join(rows)}</section>')
+def plan_week_label(wk0, plan, start):
+    n = (wk0 - start).days // 7 + 1 if start else 0
+    return f"Plan week {n} · " if start and start <= wk0 <= max(plan) else ""
 
 
-# ---------- week view ----------
+def week_html(wk0, plan, act, start):
+    wk = [wk0 + timedelta(i) for i in range(7)]
+    pm, am = week_totals(wk, plan, act)
+    zones = [sum(act[d]["zones"][i] for d in wk if d in act) for i in range(len(ZONE_COLS))]
+    hr_total = sum(act[d]["hr_secs"] for d in wk if d in act)
+    end = wk[-1]
+    zsum = f'<div class="zts">{zone_text(zones, hr_total)}</div>' if hr_total else ""
+    cross_on(wk[0])  # loads _cross
+    wload = sum(act[d].get("load", 0) for d in wk if d in act) + sum(int(c["load"]) for d in wk for c in _cross.get(d, []))
+    zsum = (f'<div class="zts">load {wload}</div>' if wload else "") + zsum
+    head = (f'<div class="whead"><h2>{plan_week_label(wk0, plan, start)}{wk0:%b} {wk0.day} – {end:%b} {end.day}</h2>'
+            f'<div class="wsum">{total_html(pm, am, wk0)}{zsum}</div></div>')
+    days = "".join(f'<div class="mh">{n}</div>' for n in DAY_NAMES)
+    return (f'<section class="view wview" data-view="week" data-key="{wk0}" hidden>{head}'
+            f'<div class="head">{days}</div><div class="week" data-week="{wk0}">'
+            f'{"".join(week_cell(d, plan, act) for d in wk)}</div></section>')
+
+
+# ---------- day view: one day in full (traces, laps) ----------
 
 def laps_table(run):
     laps = run["laps"]
@@ -405,7 +455,7 @@ def laps_table(run):
             f'<tbody>{rows}</tbody></table></details>')
 
 
-def week_day(d, plan, act):
+def day_html(d, plan, act, start):
     p, a = plan.get(d), act.get(d)
     body = plan_html(p) if p else '<div class="plan none">—</div>'
     if a:
@@ -416,46 +466,33 @@ def week_day(d, plan, act):
     elif missed(d, plan):
         body += '<div class="act missed">not recorded</div>'
     body += cross_on(d)
-    return (f'<div class="wday {day_classes(d, plan)}" data-date="{d}">'
-            f'<div class="wdate"><b>{d:%a}</b><span>{d:%b} {d.day}</span></div>'
-            f'<div class="wbody">{body}</div></div>')
-
-
-def week_html(wk0, plan, act, start):
-    wk = [wk0 + timedelta(i) for i in range(7)]
-    pm, am = week_totals(wk, plan, act)
-    zones = [sum(act[d]["zones"][i] for d in wk if d in act) for i in range(len(ZONE_COLS))]
-    hr_total = sum(act[d]["hr_secs"] for d in wk if d in act)
-    n = (wk0 - start).days // 7 + 1 if start else 0
-    label = f"Plan week {n} · " if start and start <= wk0 <= max(plan) else ""
-    end = wk[-1]
-    zsum = f'<div class="zts">{zone_text(zones, hr_total)}</div>' if hr_total else ""
-    cross_on(wk[0])  # loads _cross
-    wload = sum(act[d].get("load", 0) for d in wk if d in act) + sum(int(c["load"]) for d in wk for c in _cross.get(d, []))
-    zsum = (f'<div class="zts">load {wload}</div>' if wload else "") + zsum
-    head = (f'<div class="whead"><h2>{label}{wk0:%b} {wk0.day} – {end:%b} {end.day}</h2>'
-            f'<div class="wsum">{total_html(pm, am, wk0)}{zsum}</div></div>')
-    return (f'<section class="wview" data-week="{wk0}" hidden>{head}'
-            f'{"".join(week_day(d, plan, act) for d in wk)}</section>')
+    wk0 = d - timedelta(d.weekday())
+    label = plan_week_label(wk0, plan, start).rstrip(" ·")
+    return (f'<section class="view dview" data-view="day" data-key="{d}" hidden>'
+            f'<div class="whead"><h2>{d:%A, %B} {d.day}, {d.year}</h2>'
+            f'<div class="wsum zts">{label}</div></div>'
+            f'<div class="wday {day_classes(d, plan)}" data-date="{d}"><div class="wbody">{body}</div></div></section>')
 
 
 def main():
     plan, act = load_plan(), load_actuals()
     first, last = min(min(plan), min(act)), max(max(plan), max(act))
+    start = plan_start(plan)
     months, y, m = [], first.year, first.month
     while (y, m) <= (last.year, last.month):
         months.append(month_html(y, m, plan, act))
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
     weeks, wk0 = [], first - timedelta(first.weekday())
     while wk0 <= last:
-        weeks.append(week_html(wk0, plan, act, plan_start(plan)))
+        weeks.append(week_html(wk0, plan, act, start))
         wk0 += timedelta(7)
+    days = [day_html(first + timedelta(i), plan, act, start) for i in range((last - first).days + 1)]
 
     built = datetime.now(TZ)
     legend = "".join(f'<span class="tag t-{k}">{v}</span>' for k, v in TYPES.items() if k != "off")
     zleg = "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
     subs = {"WALK": str(WALK_PACE),
-            "LEGEND": legend, "ZLEG": zleg, "MONTHS": "".join(months), "WEEKS": "".join(weeks),
+            "LEGEND": legend, "ZLEG": zleg, "VIEWS": "".join(months + weeks + days),
             "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
             "BASE_CSS": BASE_CSS, "TABS": tabs("index.html")}
     page = TEMPLATE
@@ -464,7 +501,7 @@ def main():
     (ROOT / "docs").mkdir(exist_ok=True)
     (ROOT / "docs" / "index.html").write_text(page, encoding="utf-8")
     (ROOT / "docs" / ".nojekyll").touch()
-    print(f"Wrote docs/index.html ({len(months)} months, {len(weeks)} weeks)")
+    print(f"Wrote docs/index.html ({len(months)} months, {len(weeks)} weeks, {len(days)} days)")
 
     import fitness_page
     fitness_page.build(plan, built)
@@ -559,24 +596,36 @@ button { font: inherit; font-size: 13px; color: var(--ink); background: var(--ca
 button:disabled { opacity: .4; cursor: default; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
-.nav { display: none; gap: 4px; }
+.nav { display: inline-flex; gap: 4px; }
 .nav button { border: 1px solid var(--line); border-radius: 6px; }
-body.weekly .nav { display: inline-flex; }
-body.weekly #monthly, body:not(.weekly) #weekly { display: none; }
-.month { margin-top: 28px; }
-.month h2, .whead h2 { font-size: 18px; margin: 0 0 8px; }
-.head, .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) 84px; gap: 4px; }
-.head div { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
-  padding: 0 6px 4px; }
-.week { margin-bottom: 4px; border-radius: 8px; }
-.week.current { background: var(--curwk); box-shadow: 0 0 0 4px var(--curwk); }
-.week.current .wk { border-color: var(--today); }
-.day, .wk { background: var(--card); border: 1px solid var(--line); border-radius: 6px;
-  padding: 6px; min-height: 92px; }
-.day { border-top: 3px solid var(--line); }
-.day.other { opacity: .45; }
+#views { margin-top: 14px; }
+.view h2, .whead h2 { font-size: 18px; margin: 0 0 8px; }
+.mh { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 0 6px 4px; }
 .t-easy { --tc: var(--easy); } .t-long { --tc: var(--long); } .t-workout { --tc: var(--workout); }
 .t-race { --tc: var(--race); } .t-cross { --tc: var(--cross); }
+/* month view: fitted to the window (height set in the script) */
+.mgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) 64px;
+  grid-template-rows: auto repeat(var(--rows), minmax(52px, 1fr)); gap: 3px; height: 600px; }
+.mc, .mwk { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px;
+  overflow: hidden; min-width: 0; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.mc { border-top: 3px solid var(--tc, var(--line)); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mc.other { opacity: .4; }
+.mc.today { outline: 2px solid var(--today); outline-offset: 1px; }
+.mc.current, .mwk.current { background: color-mix(in srgb, var(--today) 9%, var(--card)); }
+.mn { font-size: 12px; color: var(--muted); }
+.mc.today .mn { color: var(--ink); font-weight: 700; }
+.mp { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 4px;
+  background: var(--tc, var(--muted)); vertical-align: 0; }
+.ma { color: var(--ok); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ma.miss { color: var(--miss); font-weight: 400; font-style: italic; }
+.mwk { align-items: flex-end; justify-content: center; text-align: right; font-variant-numeric: tabular-nums; }
+.mwk b { font-size: 15px; } .mwk small { color: var(--muted); font-size: 11px; }
+/* week view */
+.head, .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.week .day { cursor: pointer; }
+.day { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 6px; min-height: 150px;
+  border-top: 3px solid var(--line); }
 .day[class*="t-"] { border-top-color: var(--tc, var(--line)); }
 .day.today { outline: 2px solid var(--today); outline-offset: 1px; }
 .dnum { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -594,25 +643,17 @@ body.weekly #monthly, body:not(.weekly) #weekly { display: none; }
 .zbar i { display: block; height: 100%; }
 .z1 { background: var(--z1); } .z2 { background: var(--z2); } .z3 { background: var(--z3); }
 .z4 { background: var(--z4); } .z5 { background: var(--z5); }
-.wk { display: flex; flex-direction: column; justify-content: center; align-items: flex-end;
-  text-align: right; font-variant-numeric: tabular-nums; cursor: pointer; }
-#monthly .day { cursor: pointer; }
-.wk b { font-size: 18px; }
-.wk small, .wsum small { color: var(--muted); font-size: 11px; margin-left: 4px; }
-/* week view */
-#weekly { margin-top: 20px; }
+.wsum small { color: var(--muted); font-size: 11px; margin-left: 4px; }
 .whead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px;
   margin-bottom: 10px; }
 .wsum { text-align: right; font-variant-numeric: tabular-nums; }
 .wsum b { font-size: 20px; }
 .zts { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .zt { white-space: nowrap; }
-.wday { display: grid; grid-template-columns: 90px 1fr; gap: 12px; background: var(--card);
-  border: 1px solid var(--line); border-left: 4px solid var(--tc, var(--line)); border-radius: 6px;
-  padding: 10px 12px; margin-bottom: 6px; }
-.wday.today { outline: 2px solid var(--today); outline-offset: 1px; }
-.wdate b { display: block; }
-.wdate span { color: var(--muted); font-size: 12px; }
+/* day view */
+.dview .trace { max-width: 980px; }
+.wday { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--tc, var(--line));
+  border-radius: 6px; padding: 12px 14px; }
 .wday .sess { font-size: 13px; }
 .wday .act { font-size: 13px; }
 .wday .zbar { max-width: 420px; height: 6px; }
@@ -641,19 +682,19 @@ table.laps { border-collapse: collapse; margin-top: 4px; font-size: 12px; font-v
 .laps th { color: var(--muted); font-weight: 500; }
 footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 @media (max-width: 760px) {
-  .head, .week.empty { display: none; }
-  .week { grid-template-columns: 1fr; gap: 3px; margin-bottom: 14px; }
-  .week.current { box-shadow: 0 0 0 6px var(--curwk); }
-  .day, .wk { min-height: 0; }
-  .day { border-top-width: 1px; border-left: 4px solid var(--tc, var(--line)); }
-  #monthly .day.other { display: none; }
-  #monthly .day:not([class*="t-"]):not(:has(.act)), #monthly .day.t-off:not(:has(.act)) { display: none; }
+  .head { display: none; }
+  .week { grid-template-columns: 1fr; gap: 3px; }
+  .day { min-height: 0; border-top-width: 1px; border-left: 4px solid var(--tc, var(--line)); }
   .wd { display: inline; }
-  .wk { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 8px;
-    background: transparent; border: 0; padding: 2px 6px; }
-  .wk b { font-size: 15px; margin-left: auto; }
-  .wday { grid-template-columns: 1fr; gap: 4px; }
-  .wdate b { display: inline; margin-right: 6px; }
+  /* month: a colored bar for the planned type and the miles, no words */
+  .mgrid { grid-template-columns: repeat(7, minmax(0, 1fr)) 40px; gap: 2px; }
+  .mc, .mwk { padding: 3px; border-radius: 4px; }
+  .mc { font-size: 11px; }
+  .mh { padding: 0 2px 3px; font-size: 10px; letter-spacing: 0; }
+  .ml { display: none; }
+  .mp::before { width: 100%; height: 3px; display: block; margin: 0 0 2px; }
+  .mwk b { font-size: 12px; } .mwk small { display: none; }
+  .week .hrc { max-width: 260px; }
 }
 </style>
 </head>
@@ -663,18 +704,19 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 <header>
   <h1>Training Calendar</h1>
   <p class="sub">Plan vs. completed runs</p>
-  <div class="legend" style="margin-top:10px">%%LEGEND%%</div>
-  <div class="legend">HR zones: %%ZLEG%%</div>
 </header>
 <div class="bar">
   <div class="seg" role="group" aria-label="View">
-    <button id="vMonth" aria-pressed="true">Month</button><button id="vWeek" aria-pressed="false">Week</button>
+    <button id="vMonth" aria-pressed="true">Month</button><button id="vWeek" aria-pressed="false">Week</button><button id="vDay" aria-pressed="false">Day</button>
   </div>
-  <div class="nav"><button id="prev">‹ Prev</button><button id="thisWk">This week</button><button id="next">Next ›</button></div>
+  <div class="nav"><button id="prev" aria-label="Earlier">‹</button><button id="today">Today</button><button id="next" aria-label="Later">›</button></div>
 </div>
-<div id="monthly">%%MONTHS%%</div>
-<div id="weekly">%%WEEKS%%</div>
-<footer>Plan vs. completed runs. Click a day or week total to open that week. Updated %%BUILT%%.</footer>
+<div id="views">%%VIEWS%%</div>
+<footer>
+  <div class="legend">%%LEGEND%%</div>
+  <div class="legend">HR zones: %%ZLEG%%</div>
+  Click a day to open it, or a week total to open that week. ← and → step through the current view. Updated %%BUILT%%.
+</footer>
 </main>
 <script>
 (function () {
@@ -708,58 +750,75 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
   function iso(d) {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
-  var now = new Date(), today = iso(now);
-  var mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  var curWeek = iso(mon);
+  function parse(s) { var p = s.split("-"); return new Date(+p[0], +p[1] - 1, +(p[2] || 1)); }
+  function monday(s) { var d = parse(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); }
+  var today = iso(new Date()), curWeek = monday(today);
 
   document.querySelectorAll('[data-date="' + today + '"]').forEach(function (el) {
     if (!el.classList.contains("other")) el.classList.add("today");
   });
-  document.querySelectorAll('.week[data-week="' + curWeek + '"]').forEach(function (el) { el.classList.add("current"); });
+  document.querySelectorAll('.mc[data-week="' + curWeek + '"], .mwk[data-week="' + curWeek + '"]').forEach(function (el) {
+    el.classList.add("current");
+  });
 
-  var weeks = Array.prototype.slice.call(document.querySelectorAll(".wview"));
-  var home = weeks.findIndex(function (w) { return w.dataset.week === curWeek; });
-  if (home < 0) home = weeks.length - 1;
-  var idx = home;
-  function showWeek(i) {
-    idx = Math.max(0, Math.min(weeks.length - 1, i));
-    weeks.forEach(function (w, j) { w.hidden = j !== idx; });
-    document.getElementById("prev").disabled = idx === 0;
-    document.getElementById("next").disabled = idx === weeks.length - 1;
+  // three views, one section shown at a time; `sel` is the selected date, shared by all three
+  var VIEWS = ["month", "week", "day"], secs = { month: [], week: [], day: [] };
+  document.querySelectorAll("section.view").forEach(function (s) { secs[s.dataset.view].push(s); });
+  var view = "month", sel = today;
+  function key(v, d) { return v === "month" ? d.slice(0, 7) : v === "week" ? monday(d) : d; }
+  function index(v, d) {  // the section holding d, clamped to the range
+    var list = secs[v], k = key(v, d);
+    if (k <= list[0].dataset.key) return 0;
+    if (k >= list[list.length - 1].dataset.key) return list.length - 1;
+    return list.findIndex(function (s) { return s.dataset.key === k; });
   }
-  function setView(v) {
-    document.body.classList.toggle("weekly", v === "week");
-    document.getElementById("vMonth").setAttribute("aria-pressed", String(v !== "week"));
-    document.getElementById("vWeek").setAttribute("aria-pressed", String(v === "week"));
-    try { localStorage.setItem("view", v); } catch (e) {}
-    if (v !== "week") {
-      var el = document.querySelector(".week.current") || document.querySelector(".day.today");
-      if (el) el.scrollIntoView({ block: "center" });
-    }
+  function fit() {  // the month grid fills the window below its top
+    var g = document.querySelector(".mview:not([hidden]) .mgrid");
+    if (g) g.style.height = Math.max(340, innerHeight - (g.getBoundingClientRect().top + scrollY) - 12) + "px";
   }
-  document.getElementById("vMonth").onclick = function () { setView("month"); };
-  document.getElementById("vWeek").onclick = function () { setView("week"); };
-  document.getElementById("prev").onclick = function () { showWeek(idx - 1); };
-  document.getElementById("next").onclick = function () { showWeek(idx + 1); };
-  document.getElementById("thisWk").onclick = function () { showWeek(home); };
+  function render() {
+    var list = secs[view], i = index(view, sel);
+    VIEWS.forEach(function (v) { secs[v].forEach(function (s, j) { s.hidden = !(v === view && j === i); }); });
+    VIEWS.forEach(function (v) {
+      document.getElementById("v" + v[0].toUpperCase() + v.slice(1)).setAttribute("aria-pressed", String(v === view));
+    });
+    document.getElementById("prev").disabled = i === 0;
+    document.getElementById("next").disabled = i === list.length - 1;
+    try { localStorage.setItem("view", view); } catch (e) {}
+    if (view === "month") fit();
+  }
+  function shift(n) {
+    var k = secs[view][index(view, sel)].dataset.key, d = parse(k);  // step from what's shown
+    if (view === "month") d = new Date(d.getFullYear(), d.getMonth() + n, 1);
+    else d.setDate(d.getDate() + n * (view === "week" ? 7 : 1));
+    sel = iso(d);
+    render();
+  }
+  function go(v, d) { view = v; if (d) sel = d; render(); window.scrollTo(0, 0); }
+  VIEWS.forEach(function (v) {
+    document.getElementById("v" + v[0].toUpperCase() + v.slice(1)).onclick = function () { go(v); };
+  });
+  document.getElementById("prev").onclick = function () { shift(-1); };
+  document.getElementById("next").onclick = function () { shift(1); };
+  document.getElementById("today").onclick = function () { go(view, today); };
   document.addEventListener("keydown", function (e) {
-    if (!document.body.classList.contains("weekly")) return;
-    if (e.key === "ArrowLeft") showWeek(idx - 1);
-    if (e.key === "ArrowRight") showWeek(idx + 1);
+    if (e.target.closest("input, textarea")) return;
+    if (e.key === "ArrowLeft") shift(-1);
+    if (e.key === "ArrowRight") shift(1);
   });
-  // a click on any day or week total in the month view opens that week
-  document.querySelectorAll("#monthly .week[data-week]").forEach(function (el) {
-    el.onclick = function (e) {
-      if (e.target.closest("a, summary, details")) return;
-      var i = weeks.findIndex(function (w) { return w.dataset.week === el.dataset.week; });
-      if (i >= 0) { showWeek(i); setView("week"); window.scrollTo(0, 0); }
-    };
+  // month: a day opens the day view, a week total the week view; week: a day opens the day view
+  document.getElementById("views").addEventListener("click", function (e) {
+    if (e.target.closest("a, summary, details, button")) return;
+    var wk = e.target.closest(".mview .mwk[data-week]"), day = e.target.closest(".mview .mc, .wview .day");
+    if (wk) go("week", wk.dataset.week);
+    else if (day) go("day", day.dataset.date);
   });
+  window.addEventListener("resize", function () { if (view === "month") fit(); });
 
-  showWeek(idx);
   var saved = null;
   try { saved = localStorage.getItem("view"); } catch (e) {}
-  setView(saved === "week" ? "week" : "month");
+  view = VIEWS.indexOf(saved) >= 0 ? saved : "month";
+  render();
 })();
 </script>
 </body>
