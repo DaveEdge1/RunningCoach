@@ -454,10 +454,7 @@ def main():
     built = datetime.now(TZ)
     legend = "".join(f'<span class="tag t-{k}">{v}</span>' for k, v in TYPES.items() if k != "off")
     zleg = "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
-    nr = next_race()
-    goal = (f'Next race: <b>{html.escape(nr["name"])}</b> · {nr["date"]:%a %b} {nr["date"].day}, {nr["date"].year}'
-            ' · <span id="countdown"></span>') if nr else ""
-    subs = {"RACE_DATE": nr["date"].isoformat() if nr else "", "WALK": str(WALK_PACE), "GOAL": goal,
+    subs = {"WALK": str(WALK_PACE),
             "LEGEND": legend, "ZLEG": zleg, "MONTHS": "".join(months), "WEEKS": "".join(weeks),
             "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
             "BASE_CSS": BASE_CSS, "TABS": tabs("index.html")}
@@ -492,7 +489,7 @@ BASE_CSS = """:root {
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink);
   font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 48px; }
+main { max-width: 1240px; margin: 0 auto; padding: 0 16px 48px; }
 header h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.01em; }
 .goal { color: var(--muted); margin: 0 0 16px; }
 .goal b { color: var(--race); }
@@ -500,18 +497,51 @@ header h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.01em; }
   font-size: 12px; margin-bottom: 8px; }
 .legend i, .zt i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px;
   vertical-align: -1px; }
-nav.tabs { display: flex; gap: 4px; margin: 0 0 14px; }
-nav.tabs a { padding: 6px 14px; border-radius: 6px; color: var(--muted); text-decoration: none;
-  border: 1px solid var(--line); background: var(--card); font-size: 13px; }
-nav.tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+/* site bar: always visible; page toolbars stick just below it */
+:root { --topbar: 52px; }
+.topbar { position: sticky; top: 0; z-index: 20; height: var(--topbar); background: var(--bg);
+  display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+nav.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+nav.tabs a { padding: 6px 16px; color: var(--muted); text-decoration: none; background: var(--card); font-size: 13px;
+  font-weight: 500; }
+nav.tabs a + a { border-left: 1px solid var(--line); }
+nav.tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+.racebar { margin-left: auto; text-align: right; font-size: 13px; color: var(--muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.racebar b { color: var(--ink); font-weight: 600; }
+.racebar .cd { color: var(--race); font-weight: 600; }
+header { margin-bottom: 14px; }
+header h1 { margin: 0; }
+header .sub { color: var(--muted); margin: 2px 0 0; font-size: 13px; }
+@media (max-width: 520px) { .racebar .rdate { display: none; } }
 """
 
 
 def tabs(current):
+    """The site bar: page tabs plus the next race and a live countdown (filled in the browser, so it stays
+    right between site builds)."""
     links = [("index.html", "Calendar"), ("fitness.html", "Fitness")]
-    return '<nav class="tabs">' + "".join(
+    nav = '<nav class="tabs">' + "".join(
         f'<a href="{h}"' + (' aria-current="page"' if h == current else "") + f">{t}</a>"
         for h, t in links) + "</nav>"
+    nr = next_race()
+    race = ""
+    if nr:
+        goal = f' · goal {fmt_clock(nr["goal_secs"])}' if nr["goal_secs"] else ""
+        race = (f'<div class="racebar"><b>{html.escape(nr["name"])}</b>'
+                f'<span class="rdate"> · {nr["date"]:%a %b} {nr["date"].day}{goal}</span> · '
+                f'<span class="cd" data-race="{nr["date"].isoformat()}"></span></div>'
+                '<script>(function () { var c = document.querySelector(".racebar .cd"), n = new Date(),'
+                ' t = new Date(n.getFullYear(), n.getMonth(), n.getDate()), r = new Date(c.dataset.race + "T00:00:00"),'
+                ' d = Math.round((r - t) / 864e5);'
+                ' c.textContent = d > 1 ? d + " days" : d === 1 ? "tomorrow" : d === 0 ? "race day" : "done"; })();</script>')
+    return f'<div class="topbar">{nav}{race}</div>'
+
+
+def fmt_clock(secs):
+    secs = round(secs)
+    h, m, s = secs // 3600, secs // 60 % 60, secs % 60
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
 TEMPLATE = """<!doctype html>
@@ -521,7 +551,7 @@ TEMPLATE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Training Calendar</title>
 <style>
-%%BASE_CSS%%.bar { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 0;
+%%BASE_CSS%%.bar { position: sticky; top: var(--topbar); z-index: 5; background: var(--bg); padding: 10px 0;
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 button { font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 0;
@@ -629,11 +659,11 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 </head>
 <body>
 <main>
+%%TABS%%
 <header>
-  %%TABS%%
   <h1>Training Calendar</h1>
-  <p class="goal">%%GOAL%%</p>
-  <div class="legend">%%LEGEND%%</div>
+  <p class="sub">Plan vs. completed runs</p>
+  <div class="legend" style="margin-top:10px">%%LEGEND%%</div>
   <div class="legend">HR zones: %%ZLEG%%</div>
 </header>
 <div class="bar">
@@ -686,12 +716,6 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
     if (!el.classList.contains("other")) el.classList.add("today");
   });
   document.querySelectorAll('.week[data-week="' + curWeek + '"]').forEach(function (el) { el.classList.add("current"); });
-
-  var cd = document.getElementById("countdown");
-  if (cd) {
-    var days = Math.round((new Date("%%RACE_DATE%%T00:00:00") - new Date(today + "T00:00:00")) / 864e5);
-    cd.textContent = days > 0 ? days + " days to go" : days === 0 ? "race day!" : "done";
-  }
 
   var weeks = Array.prototype.slice.call(document.querySelectorAll(".wview"));
   var home = weeks.findIndex(function (w) { return w.dataset.week === curWeek; });

@@ -593,30 +593,33 @@ def build(plan, built):
     t_ago = next((t["p"] for t in trend if t["d"] == ago["d"]), None) if ago and trend else None
     fp = now["formPct"]
     form_word = "fresh" if fp > FRESH else "carrying fatigue" if fp < TIRED else "neutral"
-    tiles = [
+    volume = [
         tile("Last 7 days", f"{now['r7']:.1f} mi"),
         tile("28-day average", f"{now['r28']:.1f} mi/wk",
              delta=(signed(now["r28"] - prev28) + " vs. previous 28 days") if prev28 else ""),
-        tile("Long-term load", f"{now['ctl']:.0f}", f"{CTL_DAYS}-day average daily load",
+    ]
+    load_t = [
+        tile("Long-term load", f"{now['ctl']:.0f}", f"{CTL_DAYS}-day average",
              (signed(now["ctl"] - ago["ctl"], "{:.0f}") + " vs. 4 weeks ago") if ago else ""),
         tile("Form", f"{now['form']:+.0f}".replace("-", "−"), f"{fp:+.0f}% · {form_word}".replace("-", "−")),
     ]
-    if t_now:
-        tiles.append(tile(f"Pace at AeT ({AET} bpm)", f"{mmss(t_now)}/mi",
-                          f"at {HOME_ELEV_FT:,} ft ({HOME_NAME}) · {TREND_DAYS}-day trend, grade-adjusted easy running",
-                          (signed((t_now - t_ago) / 1, "{:.0f}", good_up=False) + " s/mi vs. 4 weeks ago") if t_ago else ""))
     if now["acwr"] is not None:
-        tiles.append(tile("Load ramp", f"{now['acwr']:.2f}",
-                          f"{ACUTE_DAYS}-day ÷ {CHRONIC_DAYS}-day load · {acwr_word(now['acwr'])}"))
+        load_t.append(tile("Load ramp", f"{now['acwr']:.2f}", f"{ACUTE_DAYS}-day ÷ {CHRONIC_DAYS}-day · {acwr_word(now['acwr'])}"))
+    fit_t = []
+    if t_now:
+        fit_t.append(tile(f"Pace at AeT ({AET} bpm)", f"{mmss(t_now)}/mi",
+                          f"{TREND_DAYS}-day trend at {HOME_ELEV_FT:,} ft",
+                          (signed((t_now - t_ago) / 1, "{:.0f}", good_up=False) + " s/mi vs. 4 weeks ago") if t_ago else ""))
     best = fitness_basis(rc)
 
     def vrange(lo, hi):
         return f"{lo:.1f}" if f"{lo:.1f}" == f"{hi:.1f}" else f"{lo:.1f}–{hi:.1f}"
 
     if best:
-        tiles.append(tile("VDOT (sea level)", f"{sl_vdot(best['meters'], best['secs'], src_elev(best)):.1f}",
-                          f"{html.escape(best['name'])}, {best['d']:%b} {best['d'].day}, at {ft(src_elev(best))} · "
-                          f"Daniels/NCAA average"))
+        fit_t.append(tile("VDOT (sea level)", f"{sl_vdot(best['meters'], best['secs'], src_elev(best)):.1f}",
+                          f"{html.escape(best['name'])}, {best['d']:%b} {best['d'].day}, at {ft(src_elev(best))}"))
+    tiles = [f'<div class="tgroup"><div class="tgh">{name}</div><div class="tiles">{"".join(ts)}</div></div>'
+             for name, ts in (("Volume", volume), ("Load", load_t), ("Fitness", fit_t)) if ts]
 
     spm = "–".join(f"{k:g}" for k in DANIELS_SPM)
     methods_note = (f"Altitude is converted two published ways and shown as a range: Daniels "
@@ -1001,7 +1004,7 @@ def build(plan, built):
         '<a href="https://www.ustfccca.org/assets/ncaa-info/2009-outdoor-alt-adjust.pdf">NCAA 2009 altitude tables</a>: '
         "% added by venue altitude (0–7,703 ft) for the mile, 5K and 10K, interpolated by altitude and distance, and held at "
         "the nearest of those distances outside that span. Neither accounts for acclimatization.</p>")
-    subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("fitness.html"), "TILES": "".join(tiles), "RACE": race_html,
+    subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("fitness.html"), "TILES": f'<div class="tgroups">{"".join(tiles)}</div>', "RACE": race_html,
             "AHEAD": ahead_html, "WORKOUTS": wo_html, "EFFORTS": eff_html, "GOAL": goal_html,
             "WEEK_ROWS": wk_rows, "DATA": json.dumps(data, separators=(",", ":")),
             "NEXT": next_html, "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
@@ -1023,7 +1026,11 @@ TEMPLATE = """<!doctype html>
 <title>Running Fitness</title>
 <style>
 %%BASE_CSS%%
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin: 4px 0 20px; }
+.tgroups { display: grid; grid-template-columns: 2fr 3fr 2fr; gap: 10px 14px; margin: 0 0 18px; }
+.tgh { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 5px 2px; }
+.tiles { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; height: calc(100% - 22px); }
+@media (max-width: 960px) { .tgroups { grid-template-columns: 1fr; } .tiles { height: auto; } }
+@media (max-width: 420px) { .tiles { grid-auto-flow: row; grid-template-columns: 1fr 1fr; } }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
 .tl { font-size: 12px; color: var(--muted); }
 .tv { font-size: 26px; font-weight: 600; margin-top: 2px; letter-spacing: -0.01em; }
@@ -1037,7 +1044,7 @@ TEMPLATE = """<!doctype html>
 .legend .ln { display: inline-block; width: 16px; height: 2px; vertical-align: 3px; margin-right: 5px; border-radius: 1px; }
 .legend .dt { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 .chart { position: relative; height: 240px; margin-top: 6px; touch-action: pan-y; }
-.range { position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; flex-wrap: wrap; align-items: center;
+.range { position: sticky; top: var(--topbar); z-index: 5; background: var(--bg); display: flex; flex-wrap: wrap; align-items: center;
   gap: 6px 8px; padding: 8px 0; margin-bottom: 6px; }
 .range button { font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 1px solid var(--line);
   border-radius: 6px; padding: 5px 11px; cursor: pointer; }
@@ -1095,12 +1102,12 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 </head>
 <body>
 <main>
+%%TABS%%
 <header>
-  %%TABS%%
   <h1>Running Fitness</h1>
-  <p class="goal">Built from completed runs only.</p>
+  <p class="sub">Built from completed runs only · updated %%BUILT%%</p>
 </header>
-<div class="tiles">%%TILES%%</div>
+%%TILES%%
 %%NEXT%%
 
 <div class="range" role="group" aria-label="Chart time range">

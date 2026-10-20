@@ -24,7 +24,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink);
   font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 48px; }
+main { max-width: 1240px; margin: 0 auto; padding: 0 16px 48px; }
 header h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.01em; }
 .goal { color: var(--muted); margin: 0 0 16px; }
 .goal b { color: var(--race); }
@@ -32,12 +32,29 @@ header h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.01em; }
   font-size: 12px; margin-bottom: 8px; }
 .legend i, .zt i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px;
   vertical-align: -1px; }
-nav.tabs { display: flex; gap: 4px; margin: 0 0 14px; }
-nav.tabs a { padding: 6px 14px; border-radius: 6px; color: var(--muted); text-decoration: none;
-  border: 1px solid var(--line); background: var(--card); font-size: 13px; }
-nav.tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+/* site bar: always visible; page toolbars stick just below it */
+:root { --topbar: 52px; }
+.topbar { position: sticky; top: 0; z-index: 20; height: var(--topbar); background: var(--bg);
+  display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+nav.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+nav.tabs a { padding: 6px 16px; color: var(--muted); text-decoration: none; background: var(--card); font-size: 13px;
+  font-weight: 500; }
+nav.tabs a + a { border-left: 1px solid var(--line); }
+nav.tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+.racebar { margin-left: auto; text-align: right; font-size: 13px; color: var(--muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.racebar b { color: var(--ink); font-weight: 600; }
+.racebar .cd { color: var(--race); font-weight: 600; }
+header { margin-bottom: 14px; }
+header h1 { margin: 0; }
+header .sub { color: var(--muted); margin: 2px 0 0; font-size: 13px; }
+@media (max-width: 520px) { .racebar .rdate { display: none; } }
 
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin: 4px 0 20px; }
+.tgroups { display: grid; grid-template-columns: 2fr 3fr 2fr; gap: 10px 14px; margin: 0 0 18px; }
+.tgh { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 5px 2px; }
+.tiles { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; height: calc(100% - 22px); }
+@media (max-width: 960px) { .tgroups { grid-template-columns: 1fr; } .tiles { height: auto; } }
+@media (max-width: 420px) { .tiles { grid-auto-flow: row; grid-template-columns: 1fr 1fr; } }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
 .tl { font-size: 12px; color: var(--muted); }
 .tv { font-size: 26px; font-weight: 600; margin-top: 2px; letter-spacing: -0.01em; }
@@ -51,7 +68,7 @@ nav.tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); bord
 .legend .ln { display: inline-block; width: 16px; height: 2px; vertical-align: 3px; margin-right: 5px; border-radius: 1px; }
 .legend .dt { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 .chart { position: relative; height: 240px; margin-top: 6px; touch-action: pan-y; }
-.range { position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; flex-wrap: wrap; align-items: center;
+.range { position: sticky; top: var(--topbar); z-index: 5; background: var(--bg); display: flex; flex-wrap: wrap; align-items: center;
   gap: 6px 8px; padding: 8px 0; margin-bottom: 6px; }
 .range button { font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 1px solid var(--line);
   border-radius: 6px; padding: 5px 11px; cursor: pointer; }
@@ -109,12 +126,12 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 </head>
 <body>
 <main>
+<div class="topbar"><nav class="tabs"><a href="index.html">Calendar</a><a href="fitness.html" aria-current="page">Fitness</a></nav><div class="racebar"><b>Phoenix 5K</b><span class="rdate"> · Sat Dec 26 · goal 21:00</span> · <span class="cd" data-race="2026-12-26"></span></div><script>(function () { var c = document.querySelector(".racebar .cd"), n = new Date(), t = new Date(n.getFullYear(), n.getMonth(), n.getDate()), r = new Date(c.dataset.race + "T00:00:00"), d = Math.round((r - t) / 864e5); c.textContent = d > 1 ? d + " days" : d === 1 ? "tomorrow" : d === 0 ? "race day" : "done"; })();</script></div>
 <header>
-  <nav class="tabs"><a href="index.html">Calendar</a><a href="fitness.html" aria-current="page">Fitness</a></nav>
   <h1>Running Fitness</h1>
-  <p class="goal">Built from completed runs only.</p>
+  <p class="sub">Built from completed runs only · updated Oct 20, 2026 13:26 MST</p>
 </header>
-<div class="tiles"><div class="tile"><div class="tl">Last 7 days</div><div class="tv">39.5 mi</div></div><div class="tile"><div class="tl">28-day average</div><div class="tv">29.3 mi/wk</div><div class=td><span class="up">+2.4</span> vs. previous 28 days</div></div><div class="tile"><div class="tl">Long-term load</div><div class="tv">107</div><div class=td><span class="up">+0</span> vs. 4 weeks ago</div><div class=ts>42-day average daily load</div></div><div class="tile"><div class="tl">Form</div><div class="tv">−19</div><div class=ts>−8% · neutral</div></div><div class="tile"><div class="tl">Pace at AeT (145 bpm)</div><div class="tv">9:07/mi</div><div class=td><span class="up">−12</span> s/mi vs. 4 weeks ago</div><div class=ts>at 7,000 ft (Flagstaff) · 21-day trend, grade-adjusted easy running</div></div><div class="tile"><div class="tl">Load ramp</div><div class="tv">1.28</div><div class=ts>7-day ÷ 28-day load · sweet spot</div></div><div class="tile"><div class="tl">VDOT (sea level)</div><div class="tv">44.6</div><div class=ts>10K, Oct 10, at 7,373 ft · Daniels/NCAA average</div></div></div>
+<div class="tgroups"><div class="tgroup"><div class="tgh">Volume</div><div class="tiles"><div class="tile"><div class="tl">Last 7 days</div><div class="tv">39.5 mi</div></div><div class="tile"><div class="tl">28-day average</div><div class="tv">29.3 mi/wk</div><div class=td><span class="up">+2.4</span> vs. previous 28 days</div></div></div></div><div class="tgroup"><div class="tgh">Load</div><div class="tiles"><div class="tile"><div class="tl">Long-term load</div><div class="tv">107</div><div class=td><span class="up">+0</span> vs. 4 weeks ago</div><div class=ts>42-day average</div></div><div class="tile"><div class="tl">Form</div><div class="tv">−19</div><div class=ts>−8% · neutral</div></div><div class="tile"><div class="tl">Load ramp</div><div class="tv">1.28</div><div class=ts>7-day ÷ 28-day · sweet spot</div></div></div></div><div class="tgroup"><div class="tgh">Fitness</div><div class="tiles"><div class="tile"><div class="tl">Pace at AeT (145 bpm)</div><div class="tv">9:07/mi</div><div class=td><span class="up">−12</span> s/mi vs. 4 weeks ago</div><div class=ts>21-day trend at 7,000 ft</div></div><div class="tile"><div class="tl">VDOT (sea level)</div><div class="tv">44.6</div><div class=ts>10K, Oct 10, at 7,373 ft</div></div></div></div></div>
 
 <section class="card next"><h2>Next race: Phoenix 5K</h2>
 <div class="panels"><div class="panel"><h3>Race</h3><table class="t kv"><tr><td>Date</td><td>Sat Dec 26, 2026 · 67 days</td></tr><tr><td>Location</td><td>Phoenix, AZ</td></tr><tr><td>Elevation</td><td>1,100 ft</td></tr><tr><td>Distance</td><td>5 km (3.11 mi)</td></tr><tr><td>Course</td><td>Out-and-back, 0.78 mi each way (2 laps, 3 turnarounds)</td></tr></table></div><div class="panel"><h3>Current fitness</h3><div class="big">21:59–22:13</div><table class="t kv"><tr><td>Pace</td><td>7:05–7:09/mi</td></tr><tr><td>Basis</td><td>10K, Oct 10</td></tr></table></div><div class="panel"><h3>Goal</h3><div class="big">21:00</div><table class="t kv"><tr><td>Pace</td><td>6:46/mi <span class="dim">(from goal time)</span></td></tr><tr><td>Needs</td><td>VDOT 47.0 at 1,100 ft</td></tr><tr><td>Vs. now</td><td>59–73 s faster</td></tr><tr><td>At Flagstaff</td><td>21:50–22:02 · 7:02–7:06/mi</td></tr></table></div><div class="panel"><h3>Checkpoint: 5K time trial</h3><div class="big">22:12–22:21 <span class="dim">on track</span></div><table class="t kv"><tr><td>Date</td><td>Tue Dec 1 · 42 days · at Flagstaff</td></tr><tr><td>On-track pace</td><td>7:09–7:12/mi</td></tr><tr><td>Goal-equivalent</td><td>21:50–22:02 · 7:02–7:06/mi</td></tr></table><p class="note"><b>On track</b>: steady progress from current fitness (Oct 10) to 21:00 on race day; Dec 1 is 68% of the way. <b>Goal-equivalent</b>: the 5K you'd run at Flagstaff if already at goal fitness.</p></div></div>
@@ -207,7 +224,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <p><b>Workout reps</b> come from laps, so press lap at the start and end of each rep. Grade-adjusted lap pace uses the same Minetti model as pace at AeT.</p>
 <p><b>Altitude</b> is converted two published ways and shown as a range. <a href="https://news.vdoto2.com/2011/03/ask-a-coach-how-do-you-adjust-threshold-pace-at-altitude/">Daniels</a>: paces slow 4–5 s/mi per 1,000 ft above 3,000 ft (15–18 s/mi at 7,000 ft). <a href="https://www.ustfccca.org/assets/ncaa-info/2009-outdoor-alt-adjust.pdf">NCAA 2009 altitude tables</a>: % added by venue altitude (0–7,703 ft) for the mile, 5K and 10K, interpolated by altitude and distance, and held at the nearest of those distances outside that span. Neither accounts for acclimatization.</p>
 </section>
-<footer>Updated Oct 20, 2026 13:19 MST.</footer>
+<footer>Updated Oct 20, 2026 13:26 MST.</footer>
 </main>
 <div id="tip"></div>
 <script>
