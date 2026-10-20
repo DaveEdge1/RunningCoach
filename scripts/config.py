@@ -69,7 +69,10 @@ HRFIT_CAL_RACES = _cfg["hr_fitness"]["calibration_races"]
 
 # Workout reps
 REP_PACE_TOL = _cfg["workouts"]["pace_tolerance_s_per_mi"]
-REP_DIST_TOL = _cfg["workouts"]["rep_distance_tolerance_pct"] / 100
+REP_MIN_S = _cfg["workouts"]["rep_min_secs"]
+THRESH_HR = tuple(_cfg["workouts"]["threshold_hr"])  # target band for a rep's average HR
+HR_CEIL = _cfg["workouts"]["hr_ceiling"]  # no rep's HR_CEIL_PCT-th percentile HR above this
+HR_CEIL_PCT = _cfg["workouts"]["hr_ceiling_percentile"]
 
 
 def recovery_days(meters):

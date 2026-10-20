@@ -68,7 +68,10 @@
   },
   "workouts": {
     "pace_tolerance_s_per_mi": 5,
-    "rep_distance_tolerance_pct": 12
+    "rep_min_secs": 60,
+    "threshold_hr": [160, 167],
+    "hr_ceiling": 170,
+    "hr_ceiling_percentile": 90
   },
   "cross_training": {
     "fit_sports": {

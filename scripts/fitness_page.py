@@ -9,9 +9,10 @@ from pathlib import Path
 from analyze import EF_HR_BAND, EF_MIN_SECS
 from build_site import BASE_CSS, tabs
 from config import (ACUTE_DAYS, ACWR_DANGER, ACWR_SWEET, AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CHRONIC_DAYS,
-                    CROSS_DEFAULT_RATE, CROSS_NAMES, DANIELS_FLOOR_FT, DANIELS_SPM, DECOUPLE_LIMIT, DECOUPLE_MIN_S, HARD_BOUT,
+                    CROSS_DEFAULT_RATE, CROSS_NAMES, DANIELS_FLOOR_FT, DANIELS_SPM, HARD_BOUT,
                     HRFIT_CAL_RACES, HRFIT_DAYS, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MAX_HR, RACE_WHOLE_RUN_TOL, REST_HR,
-                    HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, RECOVERY_KM_PER_DAY, REP_DIST_TOL, REP_PACE_TOL, ROOT,
+                    HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, RECOVERY_KM_PER_DAY, REP_MIN_S, REP_PACE_TOL, ROOT,
+                    HR_CEIL, HR_CEIL_PCT, THRESH_HR,
                     WORKOUT_Z5_PCT, ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race,
                     cross_kind, recovery_days, trail_days, zone_range)
 
@@ -185,7 +186,7 @@ def planned_load(runs, plan, rate, xrate, today, end):
 
 def efficiency(runs, daily, rc):
     """Per-run pace at AeT, plus the trend. Runs in a race's recovery window (recovery_days after it)
-    and trail runs (notes.md) are kept as points but marked and left out of the trend."""
+    are kept as points but marked and left out of the trend. Trail runs (notes.md) are left out entirely."""
     by_day = {x["d"]: x for x in daily}
     recovering = {}
     for r in rc:
@@ -195,11 +196,10 @@ def efficiency(runs, daily, rc):
     pts = []
     for r in runs:
         near_home = not r.get("elev_avg_ft") or abs(int(r["elev_avg_ft"]) - HOME_ELEV_FT) <= EF_ELEV_TOL_FT
-        if r["aet_pace_secs"] and r["date"] in by_day and near_home:
+        if r["aet_pace_secs"] and r["date"] in by_day and near_home and r["date"] not in trails:
             f = by_day[r["date"]]["formPct"]
             rec = recovering.get(r["date"])
-            why = (f"{rec[1]} day{'s' * (rec[1] != 1)} after {rec[0]}" if rec else
-                   "trail run" if r["date"] in trails else None)
+            why = f"{rec[1]} day{'s' * (rec[1] != 1)} after {rec[0]}" if rec else None
             pts.append({"d": r["date"], "p": int(r["aet_pace_secs"]), "n": int(r["aet_secs"]),
                         "mi": float(r["miles"]), "formPct": f,
                         "why": why,
@@ -416,25 +416,8 @@ def hr_fitness(runs, rc, meters):
     return pts, list(trend.values()), ({"k": k, "races": [r for r, _ in cal]} if cal else None)
 
 
-def decoupling_points(runs, plan, rc):
-    """Decoupling for steady runs only: a planned easy or long day without a steady finish, or with no plan row,
-    a run under WORKOUT_Z5_PCT % in Z5. Race days are left out."""
-    race_days, trails, out = {r["d"] for r in rc}, trail_days(), []
-    for r in runs:
-        if not r.get("decouple_pct"):
-            continue
-        d = date.fromisoformat(r["date"])
-        p = plan.get(d)
-        steady = (p["type"] in ("easy", "long") and "steady" not in p["session"].lower() if p else
-                  float(r["Z5 >LT"] or 0) < WORKOUT_Z5_PCT)
-        if steady and d not in race_days:
-            out.append({"d": r["date"], "pct": float(r["decouple_pct"]), "min": int(r["decouple_min"]),
-                        "mi": float(r["miles"]), "trail": r["date"] in trails})
-    return out
 
-
-REP_RE = re.compile(r"(\d+)\s*[×x]\s*(\d+(?:\.\d+)?)\s*(km|mi|k|m)\b", re.I)
-CAP_RE = re.compile(r"HR\s*(?:≤|<=|<)\s*(\d+)", re.I)
+REP_RE = re.compile(r"(\d+)\s*[×x]\s*(\d+(?:\.\d+)?)\s*(km|mi|min|k|m)\b", re.I)
 
 
 def load_laps():
@@ -451,10 +434,10 @@ def clock_secs(s):
 
 
 def rep_target(session, basis, elev, nr):
-    """(label, (fast, slow) sec/mi at elev, HR cap or None) for a workout session; None if it names no pace."""
+    """(label, (fast, slow) sec/mi at elev, HR (low, high, ceiling) or None) for a workout session; None if it names
+    no pace. Only threshold reps have an HR target (config.json workouts)."""
     s = session.lower()
-    cap = CAP_RE.search(session)
-    cap = int(cap.group(1)) if cap else None
+    cap = None
     if "goal" in s and nr and nr["goal_secs"] and nr["elev"] is not None:
         lo, hi = convert_range(nr["goal_secs"], nr["meters"], nr["elev"], elev)
         mi = nr["meters"] / M_PER_MI
@@ -462,8 +445,8 @@ def rep_target(session, basis, elev, nr):
     if not basis:
         return None
     vlo, vhi = vdot_range(basis, elev)
-    if "threshold" in s:  # training-plan.md: threshold reps stay at or below LT - 1
-        return "threshold", (pace_at(vhi, 0.88), pace_at(vlo, 0.88)), cap or LT - 1
+    if "threshold" in s:  # HR band and ceiling: config.json workouts
+        return "threshold", (pace_at(vhi, 0.88), pace_at(vlo, 0.88)), (*THRESH_HR, HR_CEIL)
     if "interval" in s and "10k" not in s:  # Daniels I pace
         return "interval", (pace_at(vhi, 0.98), pace_at(vlo, 0.98)), cap
     for meters, word in ((5000, "5k"), (10000, "10k")):
@@ -476,7 +459,8 @@ def rep_target(session, basis, elev, nr):
 
 
 def workouts(runs, plan, rc, nr):
-    """Planned workouts with reps ("N × D"), matched to laps: the N fastest laps within REP_DIST_TOL of D.
+    """Planned workouts with reps ("N × D"), matched to laps by effort, not distance (reps may be run by time):
+    the N laps of at least REP_MIN_S seconds with average HR at or above AeT and the fastest grade-adjusted pace.
     Rep pace is judged on grade-adjusted pace against the target at the run's elevation, from the fitness basis
     as of that day."""
     laps = load_laps()
@@ -489,29 +473,33 @@ def workouts(runs, plan, rc, nr):
         m = REP_RE.search(p["session"])
         if p["type"] != "workout" or not m or d not in by_day:
             continue
-        n, x, unit = int(m.group(1)), float(m.group(2)), m.group(3).lower()
-        dist = x * (M_PER_MI if unit == "mi" else 1 if unit == "m" else 1000)
+        n = int(m.group(1))
         best = None
         for r in by_day[d]:
             ls = laps.get((r["date"], r["start"]), [])
-            cand = [l for l in ls if abs(float(l["miles"]) * M_PER_MI - dist) <= REP_DIST_TOL * dist and l["pace"]]
-            reps = sorted(sorted(cand, key=lambda l: clock_secs(l["pace"]))[:n], key=lambda l: int(l["lap"]))
+            cand = [l for l in ls if int(l["secs"]) >= REP_MIN_S and (l["gap"] or l["pace"])
+                    and l["avg_hr"] and int(l["avg_hr"]) >= AET]
+            reps = sorted(sorted(cand, key=lambda l: clock_secs(l["gap"] or l["pace"]))[:n], key=lambda l: int(l["lap"]))
             if best is None or len(reps) > len(best[1]):
                 best = (r, reps)
         r, reps = best
         elev = int(r["elev_avg_ft"]) if r.get("elev_avg_ft") else HOME_ELEV_FT
         tgt = rep_target(p["session"], fitness_basis(rc, d), elev, nr)
         rows = []
-        for l in reps:
+        for i, l in enumerate(reps):
             gap = clock_secs(l["gap"]) if l.get("gap") else clock_secs(l["pace"])
+            pctl = int(l["hr_pctl"]) if l.get("hr_pctl") else None
             pace_ok = hr_ok = None
             if tgt:
                 fast, slow = tgt[1]
                 pace_ok = "fast" if gap < fast - REP_PACE_TOL else "slow" if gap > slow + REP_PACE_TOL else "on"
-                if tgt[2] and l["max_hr"]:
-                    hr_ok = int(l["max_hr"]) <= tgt[2]
+                if tgt[2] and l["avg_hr"]:
+                    lo, hi, ceil = tgt[2]
+                    avg = int(l["avg_hr"])
+                    hr_ok = ("over" if (pctl and pctl > ceil) or avg > hi else
+                             ("settling" if i == 0 else "low") if avg < lo else "in")
             rows.append({"lap": l["lap"], "mi": float(l["miles"]), "secs": int(l["secs"]), "pace": l["pace"],
-                         "gap": gap, "hr": l["avg_hr"], "max": l["max_hr"], "paceOk": pace_ok, "hrOk": hr_ok})
+                         "gap": gap, "hr": l["avg_hr"], "pctl": pctl, "paceOk": pace_ok, "hrOk": hr_ok})
         out.append({"d": d, "session": p["session"], "n": n, "elev": elev, "target": tgt, "reps": rows})
     return out
 
@@ -806,7 +794,7 @@ def build(plan, built):
         src = ("from the goal time" if label.startswith("goal") else
                f"from {html.escape(basis['name'])}, {basis['d']:%b} {basis['d'].day}" if basis else "")
         return (f"{label} {mmss_range(fast, slow)}/mi grade-adjusted at {elev:,} ft ({src})"
-                + (f" · HR ≤ {cap}" if cap else ""))
+                + (f" · HR {cap[0]}–{cap[1]} average, {HR_CEIL_PCT}th percentile ≤ {cap[2]}" if cap else ""))
 
     wo_parts = []
     nxt = next(((d, plan[d]) for d in sorted(plan) if d >= today and plan[d]["type"] == "workout"
@@ -820,27 +808,31 @@ def build(plan, built):
         b = fitness_basis(rc, w["d"])
         reps = w["reps"]
         n_on = sum(r["paceOk"] == "on" for r in reps)
-        n_over = sum(r["hrOk"] is False for r in reps)
+        n_over = sum(r["hrOk"] == "over" for r in reps)
         summary = (f"Found {len(reps)} of {w['n']} reps" + ("" if len(reps) == w["n"] else
                    " (lap each rep with the lap button so they can be matched)")
                    + (f". {n_on} on target pace" if w["target"] and reps else "")
-                   + (f", {n_over} over the HR cap" if w["target"] and w["target"][2] and reps else "") + ".")
+                   + (f", {n_over} over the HR target" if w["target"] and w["target"][2] and reps else "") + ".")
         verdict = {"on": "on target", "fast": "fast", "slow": "slow", None: ""}
+        hr_verdict = {"in": "in range", "low": "low", "settling": "low (first rep)", "over": "over", None: ""}
         body = "".join(
             f"<tr><td>{i}</td><td>{r['mi']:.2f}</td><td>{hms(r['secs'])}</td><td>{r['pace']}</td><td>{mmss(r['gap'])}</td>"
-            f"<td>{r['hr'] or ''}</td><td>{r['max'] or ''}</td><td>{verdict[r['paceOk']]}</td>"
-            f"<td>{'' if r['hrOk'] is None else 'under cap' if r['hrOk'] else 'over cap'}</td></tr>"
+            f"<td>{r['hr'] or ''}</td><td>{r['pctl'] or ''}</td><td>{verdict[r['paceOk']]}</td>"
+            f"<td>{hr_verdict[r['hrOk']]}</td></tr>"
             for i, r in enumerate(reps, 1))
         wo_parts.append(
             f'<h3>{w["d"]:%a %b} {w["d"].day} · {html.escape(w["session"])}</h3>'
             f'<p class="note">Target: {target_txt(w["target"], w["elev"], b)}. {summary}</p>'
             + (f'<div class="scroll"><table class="t full"><thead><tr><th>Rep</th><th>Miles</th><th>Time</th><th>Pace</th>'
-               f'<th>Grade-adj.</th><th>Avg HR</th><th>Max HR</th><th>Pace check</th><th>HR check</th></tr></thead>'
+               f'<th>Grade-adj.</th><th>Avg HR</th><th>{HR_CEIL_PCT}th % HR</th><th>Pace check</th><th>HR check</th></tr></thead>'
                f'<tbody>{body}</tbody></table></div>' if reps else ""))
     if not wo:
         wo_parts.append('<p class="note">No planned workouts with reps completed yet.</p>')
     wo_html = ('\n<section class="card"><h2>Workouts vs. targets</h2>\n'
-               f'<p class="note">Reps are the laps closest to the planned distance (within {REP_DIST_TOL:.0%}), fastest first. '
+               f'<p class="note">Reps are found by effort, not distance (so reps run by time count): the laps of at least {REP_MIN_S} s with '
+               f'average HR at or above {AET} bpm and the fastest grade-adjusted pace. Threshold reps aim for an average HR of '
+               f'{THRESH_HR[0]}–{THRESH_HR[1]} with the {HR_CEIL_PCT}th-percentile HR at or below {HR_CEIL} (a ceiling that ignores '
+               'brief spikes); the first rep may sit a little low while HR catches up. '
                f'Pace is judged on grade-adjusted pace, within {REP_PACE_TOL} s/mi of the target range, which comes from '
                'current fitness at the time (Daniels threshold, 5K, 10K and interval paces) or the goal time, converted to '
                'the run\'s elevation.</p>\n' + "\n".join(wo_parts) + "\n</section>")
@@ -941,8 +933,7 @@ def build(plan, built):
             "aet": AET, "zones": [f"{n} {zone_range(lo, hi)}" for n, lo, hi in ZONES],
             "breaks": [1, 3],  # zone indexes below the LT1 (AeT) and LT2 (LT) boundaries
             "proj": [{k: x[k] for k in ("d", "ctl", "atl", "formPct", "acwr", "plan", "mi", "s", "xload")} for x in proj],
-            "acwrSweet": ACWR_SWEET, "acwrDanger": ACWR_DANGER,
-            "dec": decoupling_points(runs, plan, rc), "decLimit": DECOUPLE_LIMIT, "goal": goal}
+            "acwrSweet": ACWR_SWEET, "acwrDanger": ACWR_DANGER, "goal": goal}
     first = date.fromisoformat(daily[0]["d"])
     about = (
         f"<p><b>Load</b> is HR-zone-weighted minutes: each minute in Z1 counts 1, Z2 counts 2, and so on up to Z5 = 5. "
@@ -959,8 +950,9 @@ def build(plan, built):
         f"when HR stays high for the rest of the run. A hard bout is {HARD_BOUT[0][1] // 60} minutes at {HARD_BOUT[0][0]} bpm or "
         f"{HARD_BOUT[1][1] // 60} at {HARD_BOUT[1][0]}, on an exponential curve through those points "
         f"(shorter the higher the HR), counted after the warm-up. Runs within one day per {RECOVERY_KM_PER_DAY:g} km of a race (Daniels' easy days "
-        f"after racing: 3 days for a 10K) and trail runs (marked in notes.md; grade adjustment doesn't account for rough footing) "
-        f"show as open circles and stay out of the trend. A run needs at least {EF_MIN_SECS // 60} minutes "
+        f"after racing: 3 days for a 10K) "
+        f"show as open circles and stay out of the trend. Trail runs (marked in notes.md) are left out: grade adjustment "
+        f"doesn't account for rough footing. A run needs at least {EF_MIN_SECS // 60} minutes "
         f"of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days (at least {TREND_MIN_RUNS} runs), and each "
         f"point is drawn at the center of its window, so the line stops about {TREND_DAYS // 2} days short of today. "
         f"Only runs within {EF_ELEV_TOL_FT:,} ft of {HOME_NAME} ({HOME_ELEV_FT:,} ft) count, so the number is a "
@@ -1001,12 +993,6 @@ def build(plan, built):
         "<p><b>Cross-training</b> (hikes and XC skis recorded on the watch) adds HR-zone load the same way runs do, but no "
         "miles. HR load misses the muscle damage from long loaded descents, so expect to feel more tired after the Grand "
         "Canyon than form shows.</p>\n"
-        "<p><b>Decoupling</b> (Pa:HR) compares grade-adjusted pace per heartbeat in the first and second halves of a run, "
-        f"after the {AET_WARMUP_S // 60}-minute warm-up, counting running seconds on grades under {AET_MAX_GRADE:.0%}. "
-        f"Below {DECOUPLE_LIMIT:g}% means your aerobic endurance holds for that long "
-        '(<a href="https://www.trainingpeaks.com/learn/articles/aerobic-endurance-and-decoupling/">Friel, TrainingPeaks</a>). '
-        f"Only steady runs count (planned easy or long days without a steady finish, or before the plan, runs under "
-        f"{WORKOUT_Z5_PCT}% in Z5), with at least {DECOUPLE_MIN_S // 60} minutes of qualifying running.</p>\n"
         "<p><b>Workout reps</b> come from laps, so press lap at the start and end of each rep. Grade-adjusted lap pace uses "
         "the same Minetti model as pace at AeT.</p>\n"
         "<p><b>Altitude</b> is converted two published ways and shown as a range. "
@@ -1017,7 +1003,6 @@ def build(plan, built):
         "the nearest of those distances outside that span. Neither accounts for acclimatization.</p>")
     subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("fitness.html"), "TILES": "".join(tiles), "RACE": race_html,
             "AHEAD": ahead_html, "WORKOUTS": wo_html, "EFFORTS": eff_html, "GOAL": goal_html,
-            "DEC_LIMIT": f"{DECOUPLE_LIMIT:g}",
             "WEEK_ROWS": wk_rows, "DATA": json.dumps(data, separators=(",", ":")),
             "NEXT": next_html, "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}",
             "HOME_ELEV": f"{HOME_ELEV_FT:,}", "TREND_DAYS": str(TREND_DAYS), "CTL": str(CTL_DAYS), "ATL": str(ATL_DAYS), "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
@@ -1137,15 +1122,9 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 </section>
 
 <section class="card"><h2>Aerobic efficiency: pace at %%AET%% bpm, at %%HOME_ELEV%% ft</h2>
-<p class="note">Estimated from grade-adjusted easy running near AeT, after the warm-up and before any hard effort. Faster is up. Dots are single runs, colored by form going into that day, so a slow dot on a tired day isn't a sign of lost fitness. Open circles are runs in the days after a race or on trails, left out of the trend.</p>
+<p class="note">Estimated from grade-adjusted easy running near AeT, after the warm-up and before any hard effort. Faster is up. Dots are single runs, colored by form going into that day, so a slow dot on a tired day isn't a sign of lost fitness. Open circles are runs in the days after a race, left out of the trend. Trail runs are left out.</p>
 <div class="chart" id="cEff"></div>
-<div class="legend"><span><span class="ln" style="background:var(--s7)"></span>%%TREND_DAYS%%-day trend</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span><span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>Race recovery or trail</span></div>
-</section>
-
-<section class="card"><h2>Aerobic durability: decoupling on steady runs</h2>
-<p class="note">How much grade-adjusted pace per heartbeat falls from the first half of a steady run to the second. Under %%DEC_LIMIT%%% (below the line) means your aerobic endurance holds for that long; watch it on the long runs as they grow. Open circles are trail runs.</p>
-<div class="chart" id="cDec"></div>
-<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Steady run (dot size = minutes analyzed)</span><span><span class="ln" style="background:var(--muted)"></span>%%DEC_LIMIT%%% line</span></div>
+<div class="legend"><span><span class="ln" style="background:var(--s7)"></span>%%TREND_DAYS%%-day trend</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span><span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>Race recovery</span></div>
 </section>
 
 <section class="card"><h2>Intensity by week</h2>
@@ -1397,24 +1376,6 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   function hline(f, v, cls) { return el("line", { "class": cls, x1: f.m.l, x2: f.W - f.m.r, y1: f.Y(v), y2: f.Y(v) }, f.svg); }
   function vline(f, d, cls) { return el("line", { "class": cls, x1: f.X(d), x2: f.X(d), y1: f.m.t, y2: f.H - f.m.b }, f.svg); }
 
-  function dec() {
-    var box = document.getElementById("cDec");
-    if (!D.dec.length) { box.innerHTML = '<p class="note">No steady run with enough qualifying running yet.</p>'; return; }
-    var vs = D.dec.map(function (p) { return p.pct; }).concat([0, D.decLimit]);
-    var lo = Math.floor(Math.min.apply(null, vs) / 5) * 5, hi = Math.ceil((Math.max.apply(null, vs) + 1) / 5) * 5, ticks = [];
-    for (var v = lo; v <= hi; v += 5) ticks.push(v);
-    var f = frame("cDec", x0, x1, lo, hi, ticks, function (v) { return v + "%"; });
-    monthTicks(f, x0, x1);
-    hline(f, 0, "zero");
-    hline(f, D.decLimit, "brk");
-    D.dec.forEach(function (p) {
-      var r = 4 + Math.min(4, Math.max(0, (p.min - 45) / 20));
-      var c = dot(f, f.X(day(p.d) + .5), f.Y(p.pct), r, !p.trail, "--s1");
-      hover(f, c, "<b>" + fmtDate(p.d) + "</b> · " + p.mi.toFixed(1) + " mi" + (p.trail ? " · trail" : "") + "<br>Decoupling " +
-        (p.pct > 0 ? "+" : "") + p.pct.toFixed(1) + "%<br>" + p.min + " min analyzed", r);
-    });
-  }
-
   // projection to race day: its own fixed window, from 6 weeks back through race day
   function projWindow() {
     var a = Math.max(day(D.proj[0].d), day(D.today) - 42), b = day(D.proj[D.proj.length - 1].d) + 1;
@@ -1534,7 +1495,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   }
   function renderStatic() { proj(); acwr(); goalChart(); }
 
-  function render() { setWindow(); miles(); load(); eff(); dec(); zones(); }
+  function render() { setWindow(); miles(); load(); eff(); zones(); }
   function shift(days) { vEnd += days; render(); }
   document.getElementById("rPrev").onclick = function () { shift(-7); };
   document.getElementById("rNext").onclick = function () { shift(7); };
@@ -1543,7 +1504,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     b.onclick = function () { span = +b.dataset.span; render(); };
   });
   // drag (mouse) or swipe (touch) on a time chart to pan
-  ["cMiles", "cLoad", "cEff", "cDec", "cZones"].forEach(function (id) {
+  ["cMiles", "cLoad", "cEff", "cZones"].forEach(function (id) {
     var box = document.getElementById(id), startX = null, startEnd, raf = 0;
     box.addEventListener("pointerdown", function (ev) { startX = ev.clientX; startEnd = vEnd; box.setPointerCapture(ev.pointerId); });
     box.addEventListener("pointermove", function (ev) {

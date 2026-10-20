@@ -10,7 +10,7 @@
 |---|---|---|---|
 | Easy / long | **< 145** (Z1–Z2) | ~9:45–11:00 | On climbs, slow down or hike to stay under ~150. Most of the change is here. |
 | Steady (long-run finish) | 145–157 (Z3) | ~8:45–9:15 | Only where scheduled |
-| Threshold | 158–167 (Z4) | ~7:50–8:00 | **Don't let reps climb above 167.** If HR hits the cap, slow down. |
+| Threshold | **160–167** average (Z4) | ~7:50–8:00 grade-adjusted | Keep each rep's 90th-percentile HR **≤ 170**; if it gets there, ease off. The first rep can sit a little lower while HR catches up. Reps can be run by time (e.g., 7 min). |
 | Interval | 168+ (Z5) | ~7:10/mi (4:28/km) | Run by pace. HR lags on short reps. |
 | 5K goal pace | 168+ (Z5) | ~7:02–7:06/mi at Flagstaff, 6:46/mi at sea level | Run by pace. |
 | Hill sprints | n/a | all-out | 6–8 × 8–10 s on a steep hill, full walk-back recovery. **Keep 2×/week (knee).** |
@@ -55,7 +55,7 @@ If your legs still feel the race by Wednesday, cut Thursday rather than pushing 
 
 **Week 2 (Oct 19–25), 38 mi**
 - Mon: 6 easy
-- Tue: 1.5 wu · 4 × 1 mi threshold (HR ≤ 167, ~7:50–8:00), 2 min jog · 1.5 cd (~7.5 mi)
+- Tue: 1.5 wu · 4 × 7 min threshold (ran by time instead of 1 mi), 90 s jog · 2 cd ✅ 7.4 mi
 - Wed: 6 easy + hill sprints
 - Thu: 5 easy
 - Fri: off

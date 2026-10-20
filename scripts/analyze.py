@@ -19,7 +19,7 @@ import fitdecode
 
 import elevation
 from config import (AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CROSS_DEFAULT_RATE, CROSS_FIT_SPORTS, DECOUPLE_MIN_S,
-                    EFFORT_DISTANCES, HARD_BOUT, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MANUAL_LOAD_PER_MIN, ROOT,
+                    EFFORT_DISTANCES, HARD_BOUT, HR_CEIL_PCT, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MANUAL_LOAD_PER_MIN, ROOT,
                     TZ, ZONES, hard_bout_secs)
 
 warnings.filterwarnings("ignore", module="fitdecode")  # COROS files trip a harmless size warning
@@ -229,6 +229,17 @@ def lap_gaps(laps, recs, ga):
     return out
 
 
+def lap_hr_pct(laps, recs):
+    """HR_CEIL_PCT-th percentile HR per lap (a ceiling that ignores brief spikes), matched by cumulative distance."""
+    out, start = [], 0.0
+    for l in laps:
+        end = start + l["dist"]
+        hr = [r[0] for r in recs if r[0] and r[2] is not None and start <= r[2] < end]
+        out.append(round(statistics.quantiles(hr, n=100, method="inclusive")[HR_CEIL_PCT - 1]) if len(hr) > 1 else "")
+        start = end
+    return out
+
+
 def hr_segments(laps, recs, ga):
     """Steady stretches for the HR-based fitness estimate: per lap, the seconds after HR has settled
     (HRFIT_SETTLE_S into the lap, and after the run's warm-up), before AET_MAX_S (cardiac drift), with HR, running,
@@ -358,11 +369,11 @@ def main():
             continue
         prof = elevation.profile(fid, [r[2] for r in recs], s.get("pos", []))
         ga = grade_adjust(recs, prof)
-        for i, (l, gap) in enumerate(zip(laps, lap_gaps(laps, recs, ga)), 1):
+        for i, (l, gap, hp) in enumerate(zip(laps, lap_gaps(laps, recs, ga), lap_hr_pct(laps, recs)), 1):
             lap_rows.append([d, local.strftime("%H:%M"), i, f"{l['dist'] / M_PER_MI:.2f}",
                              int(l["time"]), pace(l["time"], l["dist"]), l["avg_hr"], l["max_hr"],
                              round(l["ascent"] * FT_PER_M), round(l["descent"] * FT_PER_M),
-                             l["cadence"] and l["cadence"] * 2, gap and f"{gap // 60}:{gap % 60:02d}"])
+                             l["cadence"] and l["cadence"] * 2, gap and f"{gap // 60}:{gap % 60:02d}", hp])
         for m, secs, gap, drop, ahr, mhr in best_efforts(recs, ga, prof):
             effort_rows.append([d, local.strftime("%H:%M"), m, secs, gap,
                                 drop if drop == "" else round(drop * FT_PER_M), ahr, mhr])
@@ -453,7 +464,7 @@ def main():
     with open(ROOT / "data" / "laps.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["date", "start", "lap", "miles", "secs", "pace", "avg_hr", "max_hr",
-                    "ascent_ft", "descent_ft", "spm", "gap"])
+                    "ascent_ft", "descent_ft", "spm", "gap", "hr_pctl"])
         w.writerows(lap_rows)
     with open(ROOT / "data" / "runs.csv", "w", newline="") as f:
         w = csv.writer(f)
