@@ -2,11 +2,11 @@
 
 Usage: python scripts/build_site.py   (run scripts/analyze.py first)
 """
-import calendar, csv, html, itertools
+import calendar, csv, html, itertools, re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from config import AET, CROSS_NAMES, LT, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, next_race, zone_range
+from config import AET, CROSS_NAMES, LT, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, load_races, next_race, zone_range
 TYPES = {"easy": "Easy", "long": "Long", "workout": "Workout", "race": "Race",
          "cross": "Cross-train", "off": "Off"}
 
@@ -129,6 +129,7 @@ def zone_anchors():
 
 _grad_ids = itertools.count(1)
 M_PER_MI_ = 1609.344
+TT_DIST = re.compile(r"(\d+(?:\.\d+)?)\s*(km|k|mi|mile)\b", re.I)  # distance in a time-trial session
 GAP_FLOOR = 12 * 60  # sec/mi at the bottom of every week-view GAP panel; slower points are drawn on it
 GAP_SMOOTH_SECS = 15  # +/- seconds of averaging for running GAP points
 SPEED_SIMILAR = 0.2   # speed averages only with neighbors within 20% of it
@@ -371,9 +372,15 @@ DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 def month_cell(d, plan, act, month):
     p, a = plan.get(d), act.get(d)
     parts = [f'<span class="mn">{d.day}</span>']
+    tt = p and "time trial" in p["session"].lower()
     if p and p["type"] != "off":
         mi = float(p["miles"])
-        parts.append(f'<span class="mp"><span class="ml">{TYPES.get(p["type"], p["type"])}</span>'
+        if p["type"] == "race" and d in _race_mi():  # the race distance, not the day's miles with warm-up
+            mi = _race_mi()[d]
+        elif tt:  # the distance in the session ("5K time trial"), like a race
+            m = TT_DIST.search(p["session"])
+            mi = round(float(m.group(1)) * (1 if m.group(2).lower().startswith("mi") else 1000 / M_PER_MI_), 1) if m else mi
+        parts.append(f'<span class="mp"><span class="ml">{"Time trial" if tt else TYPES.get(p["type"], p["type"])}</span>'
                      f'{f" {fmt_mi(mi)}" if mi else ""}</span>')
     if a:
         parts.append(f'<span class="ma">✓ {fmt_mi(round(a["miles"], 1))}</span>')
@@ -383,9 +390,15 @@ def month_cell(d, plan, act, month):
     for c in _cross.get(d, []):
         parts.append(f'<span class="ma">✓ {CROSS_NAMES[c["kind"]].lower()}</span>')
     title = f' title="{html.escape(p["session"])}"' if p else ""
-    cls = "mc" + (" other" if d.month != month else "") + (f" t-{p['type']}" if p else "")
+    cls = "mc" + (" other" if d.month != month else "") + (" t-race" if tt else f" t-{p['type']}" if p else "")
     return (f'<div class="{cls}" data-date="{d}" data-week="{d - timedelta(d.weekday())}"'
             f'{title}>{"".join(parts)}</div>')
+
+
+def _race_mi(_c={}):
+    if not _c:
+        _c.update({r["date"]: round(r["meters"] / M_PER_MI_, 1) for r in load_races()})
+    return _c
 
 
 def month_html(year, month, plan, act):
