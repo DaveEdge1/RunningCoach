@@ -36,7 +36,8 @@ def load_actuals():
         for r in csv.DictReader(f):
             laps[(r["date"], r["start"])].append(r)
     days = defaultdict(lambda: {"miles": 0.0, "secs": 0, "hr_secs": 0, "hr_sum": 0, "elev": 0,
-                                "zones": [0.0] * len(ZONE_COLS), "runs": [], "manual": False, "hist": {}})
+                                "zones": [0.0] * len(ZONE_COLS), "runs": [], "manual": False, "hist": {},
+                                "gap_secs": 0, "gap_mi": 0.0, "ghist": {}})
     traces = {}
     if (ROOT / "data" / "trace.csv").exists():
         with open(ROOT / "data" / "trace.csv", encoding="utf-8") as f:
@@ -60,6 +61,13 @@ def load_actuals():
             d["runs"].append({**r, "laps": laps.get((r["date"], r["start"]), []),
                               "trace": traces.get((r["date"], r["start"]))})
             d["load"] = d.get("load", 0) + int(r["load"] or 0)
+            if r["gap_secs"]:  # whole-run grade-adjusted time
+                d["gap_secs"] += int(r["gap_secs"])
+                d["gap_mi"] += mi
+            t = traces.get((r["date"], r["start"]))
+            if t:
+                for k, c in gap_hist(t).items():
+                    d["ghist"][k] = d["ghist"].get(k, 0) + c
             if r["fit"].endswith("(manual)"):
                 d["manual"] = True
             elif r["hr_secs"]:
@@ -134,6 +142,7 @@ GAP_FLOOR = 12 * 60  # sec/mi at the bottom of every week-view GAP panel; slower
 GAP_SMOOTH_SECS = 15  # +/- seconds of averaging for running GAP points
 SPEED_SIMILAR = 0.2   # speed averages only with neighbors within 20% of it
 WALK_PACE = 805      # sec/mi (~13:25); slower points are treated as walking
+GAP_BUCKET = 5       # sec/mi per bin of the week view GAP curve
 
 
 def hr_color(bpm):
@@ -223,17 +232,12 @@ def _mmss(sec):
     return f"{int(sec) // 60}:{int(sec) % 60:02d}"
 
 
-def run_trace(run, W=640):
-    """HR and grade-adjusted pace vs time as two stacked panels sharing the time axis, with lap boundaries.
-    Hover data rides on data- attributes for the page script."""
-    t = run.get("trace")
-    if not t or not any(t["hr"]):
-        return ""
-    n, b = len(t["hr"]), t["bin"]
-    # GAP = speed x grade factor, each smoothed over +/- GAP_SMOOTH_SECS among running neighbors.
-    # Speed only averages with neighbors within SPEED_SIMILAR of it (edge-preserving), so GPS jitter on
-    # steady running is calmed while a sprint's plateau stays separate from its ramp-up and the walks.
-    # Walking points stay raw.
+def smooth_gap(t):
+    """GAP = speed x grade factor, each smoothed over +/- GAP_SMOOTH_SECS among running neighbors.
+    Speed only averages with neighbors within SPEED_SIMILAR of it (edge-preserving), so GPS jitter on
+    steady running is calmed while a sprint's plateau stays separate from its ramp-up and the walks.
+    Walking points stay raw."""
+    n, b = len(t["pace"]), t["bin"]
     running = [bool(pc) and pc < WALK_PACE for pc in t["pace"]]
     fac = [pc / g if pc and g else None for pc, g in zip(t["pace"], t["gap"])]
     spd = [M_PER_MI_ / pc if pc else None for pc in t["pace"]]
@@ -247,13 +251,72 @@ def run_trace(run, W=640):
         f = sum(fac[k] for k in near) / len(near)
         v = [spd[k] for k in near if abs(spd[k] - spd[i]) <= SPEED_SIMILAR * spd[i]]
         gs.append(M_PER_MI_ / (sum(v) / len(v) * f))
+    return gs
+
+
+def gap_hist(t):
+    """Seconds at each GAP_BUCKET of grade-adjusted pace (running only, like the HR curve's bpm)."""
+    out = {}
+    for g, pc in zip(smooth_gap(t), t["pace"]):
+        if g and pc and pc < WALK_PACE:
+            k = round(g / GAP_BUCKET) * GAP_BUCKET
+            out[k] = out.get(k, 0) + t["bin"]
+    return out
+
+
+def gap_curve(counts, W=420, H=64, compact=False):
+    """Smoothed GAP distribution as inline SVG, the twin of hr_curve: faster to the right (harder, like
+    higher HR), x-axis trimmed to the run's own span."""
+    if not counts:
+        return ""
+    def edge(keys):
+        acc = 0
+        for k in keys:
+            acc += counts[k]
+            if acc >= HIST_TAIL_SECS:
+                return k
+        return keys[-1]
+    lo, hi = edge(sorted(counts)), edge(sorted(counts, reverse=True))  # lo = fastest, hi = slowest
+    lo, hi = min(lo, hi), max(lo, hi)
+    if hi - lo < 40:  # keep very even runs readable
+        mid = (lo + hi) // 2 // GAP_BUCKET * GAP_BUCKET
+        lo, hi = mid - 20, mid + 20
+    r = len(HIST_KERNEL) // 2
+    ks = range(lo, hi + 1, GAP_BUCKET)
+    sm = {k: sum(w * counts.get(k + (j - r) * GAP_BUCKET, 0) for j, w in enumerate(HIST_KERNEL)) / sum(HIST_KERNEL)
+          for k in ks}
+    top, ph = max(sm.values()) or 1, H - (8 if compact else 14)
+    X = lambda k: (hi - k) / (hi - lo) * W
+    Y = lambda v: ph - v / top * (ph - 2)
+    path = f"M0,{ph} " + " ".join(f"L{X(k):.1f},{Y(sm[k]):.1f}" for k in reversed(ks)) + f" L{W},{ph}Z"
+    # x-axis: a tick and label at each whole minute of pace (the middle of the span if none falls inside)
+    mins_in = list(range((lo + 59) // 60 * 60, hi + 1, 60)) or [(lo + hi) // 2]
+    edge_a = lambda x: "start" if x < 10 else "end" if x > W - 10 else "middle"
+    labels = "".join(f'<line class="tick" x1="{X(m):.1f}" x2="{X(m):.1f}" y1="{ph}" y2="{ph + 1.5}"/>'
+                     f'<text x="{X(m):.1f}" y="{H - 1}" text-anchor="{edge_a(X(m))}">'
+                     f'{m // 60 if m % 60 == 0 and compact else _mmss(m)}</text>'  # compact: whole minutes, "9" = 9:00/mi
+                     for m in mins_in)
+    mins = sum(counts.values()) / 60
+    return (f'<svg class="hrc gpc" viewBox="0 0 {W} {H}" role="img" aria-label="Grade-adjusted pace distribution, '
+            f'{_mmss(hi)}–{_mmss(lo)} /mi, {mins:.0f} min"><title>GAP {_mmss(hi)}–{_mmss(lo)} /mi</title>'
+            f'<line class="base" x1="0" x2="{W}" y1="{ph}" y2="{ph}"/><path class="gf" d="{path}"/>{labels}</svg>')
+
+
+def run_trace(run, W=640):
+    """HR and grade-adjusted pace vs time as two stacked panels sharing the time axis, with lap boundaries.
+    Hover data rides on data- attributes for the page script."""
+    t = run.get("trace")
+    if not t or not any(t["hr"]):
+        return ""
+    n, b = len(t["hr"]), t["bin"]
+    gs = smooth_gap(t)
     hv = [h for h in t["hr"] if h]
     gv = sorted(g for g in gs if g)
     hlo, hhi = min(hv) - 3, max(hv) + 3
     ghi = GAP_FLOOR  # slowest shown; anything slower runs off the bottom
     glo = min(min(gv), ghi - 120) // 30 * 30 if gv else ghi - 240  # fastest point sets the top
     ml, mr = 40, 8
-    H1, H2, gapy, axh = 78, 56, 10, 16
+    H1, H2, gapy, axh = 70, 70, 10, 16  # HR and GAP panels the same size
     top2 = H1 + gapy
     H = top2 + H2 + axh
     pw = W - ml - mr
@@ -326,9 +389,13 @@ def plan_html(p):
 
 def act_summary(a, load=False):
     hr = round(a["hr_sum"] / a["hr_secs"]) if a["hr_secs"] else None
-    bits = [f'<b>{fmt_mi(round(a["miles"], 1))}</b> mi', fmt_pace(a["secs"], a["miles"])]
+    gap = fmt_pace(a["gap_secs"], a["gap_mi"])  # GAP and HR side by side, equal weight
+    bits = [f'<b>{fmt_mi(round(a["miles"], 1))}</b> mi',
+            f"<b>{gap}</b> GAP" if gap else fmt_pace(a["secs"], a["miles"])]
     if hr:
-        bits.append(f"{hr} bpm")
+        bits.append(f"<b>{hr}</b> bpm")
+    if load and gap:
+        bits.append(f'pace {fmt_pace(a["secs"], a["miles"])}')
     if load and a.get("load"):
         bits.append(f'load {a["load"]}')
     if a["manual"]:
@@ -424,7 +491,8 @@ def week_cell(d, plan, act):
     if p:
         parts.append(plan_html(p))
     if a:
-        parts.append(f'<div class="act">{act_summary(a)}{hr_curve(a["hist"], W=150, H=26, compact=True) or zone_bar(a["zones"], a["hr_secs"])}</div>')
+        parts.append(f'<div class="act">{act_summary(a)}{hr_curve(a["hist"], W=150, H=26, compact=True) or zone_bar(a["zones"], a["hr_secs"])}'
+                     f'{gap_curve(a["ghist"], W=150, H=34, compact=True)}</div>')
     elif missed(d, plan):
         parts.append('<div class="act missed">not recorded</div>')
     parts.append(cross_on(d))
@@ -460,11 +528,11 @@ def laps_table(run):
     laps = run["laps"]
     if len(laps) < 2:
         return ""
-    rows = "".join(f'<tr><td>{l["lap"]}</td><td>{l["miles"]}</td><td>{l["pace"]}</td>'
-                   f'<td>{l["avg_hr"]}</td><td>{l["max_hr"]}</td>'
+    rows = "".join(f'<tr><td>{l["lap"]}</td><td>{l["miles"]}</td><td><b>{l["gap"]}</b></td>'
+                   f'<td><b>{l["avg_hr"]}</b></td><td>{l["pace"]}</td><td>{l["max_hr"]}</td>'
                    f'<td>+{l["ascent_ft"]}/−{l["descent_ft"]}</td></tr>' for l in laps)
-    return (f'<details><summary>{len(laps)} laps</summary><table class="laps"><thead><tr>'
-            f'<th>Lap</th><th>Mi</th><th>Pace</th><th>HR</th><th>Max</th><th>Ft</th></tr></thead>'
+    return (f'<details class="lapd" open><summary>Laps <small>{len(laps)}</small></summary><table class="laps"><thead><tr>'
+            f'<th>Lap</th><th>Mi</th><th>GAP</th><th>HR</th><th>Pace</th><th>Max HR</th><th>Ft</th></tr></thead>'
             f'<tbody>{rows}</tbody></table></details>')
 
 
@@ -679,7 +747,19 @@ button:disabled { opacity: .4; cursor: default; }
 .trace .pl { font-weight: 600; fill: var(--ink); opacity: .7; }
 .trace .pnl { fill: none; stroke: var(--line); }
 .trace .hl { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.trace .gl { fill: none; stroke: var(--s1); stroke-width: 1.5; stroke-linejoin: round; }
+.trace .gl { fill: none; stroke: var(--s1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.gpc .gf { fill: var(--s1); fill-opacity: .75; }
+.gpc .tick { stroke: var(--muted); stroke-width: .5; }
+.week .gpc text { font-size: 6.5px; }
+/* day view laps: open, full size, ruled rows */
+.lapd { margin-top: 14px; }
+.lapd summary { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.lapd summary small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 4px; }
+.lapd table.laps { font-size: 14px; width: 100%; max-width: 640px; }
+.lapd .laps th, .lapd .laps td { padding: 5px 12px 5px 0; border-bottom: 1px solid var(--line); }
+.lapd .laps th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.lapd .laps tbody tr:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.act b { color: var(--ink); }
 .trace .thr { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; opacity: .45; }
 .trace .lap { stroke: var(--muted); stroke-width: 1; opacity: .35; }
 .trace .guide { stroke: var(--ink); stroke-width: 1; opacity: .5; }
