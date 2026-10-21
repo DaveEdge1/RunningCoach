@@ -66,3 +66,33 @@ cost of running at grade-adjusted speed v (the equation inside VDOT) and %HRR = 
 - A population relation doesn't fit one runner exactly, so estimates are scaled to match race results
   (median ratio over the last `calibration_races`), as Runalyze does with its effective VO2max
   correction factor: https://runalyze.com/help/article/vo2max
+
+## Race calculator ranges (race_errors.csv, built by scripts/race_errors.py)
+How far real runners land from VDOT predictions, used by the Calculator tab for its center (VDOT × the median miss)
+and 80% range (10th–90th percentile). Source: thepowerof10, official results of 165,000 British club runners, published
+with Blythe DAJ, Király FJ, "Prediction and quantification of individual athletic performance of runners", PLOS ONE
+2016;11:e0157257 (https://figshare.com/articles/thepowerof10/3408202, CC BY 4.0). For each runner and pair of distances
+(1500 m, mile, 5K, 10K, half, marathon), the two races closest in time within 90 days, one pair per runner; at the same
+distance, two different races, earlier to later. Split by the input race's VDOT (< 40, 40–50, 50–60, 60+) with an
+"all" row as the fallback below 50 runners. Percentages are actual time vs. predicted (positive = slower).
+
+First built (2026-10-21) from Vickers AJ, Vertosick EA, "An empirical study of race times in recreational endurance
+runners", BMC Sports Sci Med Rehabil 2016;8:26 (https://doi.org/10.1186/s13102-016-0052-y, Additional file 2, survey of
+2,303 runners, CC BY 4.0). Tested on thepowerof10, those ranges were too wide for 5K–half (94% inside), too narrow for
+the marathon (65%), ignored ability (50% inside under VDOT 40, > 90% over 60), and had nothing below 5K. The rebuilt
+table: built on half the club runners, 71–83% of the other half land inside (80% for most pairs); on the survey
+runners, 76% overall (5K → 10K 65%, marathon 83–86%). The survey still supplies the `model1`/`model2` rows: its
+weekly-mileage marathon models (formulas in its Additional file 1) checked against its validation runners (group 3;
+n = 156 for model 2 matches the paper). Riegel (exponent 1.06) misses by about the same amounts as VDOT.
+
+## Threshold definitions and zones (Calculator tab)
+- HRV4Training: threshold (critical pace) = what you could hold all out for 10–15 km; pace zones Z1 > 130%,
+  Z2 115–130%, Z3 105–115%, Z4 95–105%, Z5 90–95%, Z6 < 90% of it. Marco Altini, "Lactate threshold / critical speed",
+  https://marcoaltini.substack.com/p/lactate-threshold-critical-speed (zones from the app screenshot in that post).
+- Daniels T pace: 88% of VDOT, about the pace you could race for an hour.
+- LT1 → VDOT: LT1 taken as the top of Daniels' Easy range, 70% (the Fitness tab's Easy bound) to 74% of VDOT
+  (Daniels' Running Formula: easy running is 59–74% of VO2max). Never validated against race times, so the
+  calculator uses it only when no race or LT2 is entered.
+- Altini M, Amft O, "Estimating running performance combining non-invasive physiological measurements and training
+  patterns in free-living", EMBC 2018: 10K time from HRV, training volume and intensity distribution by regression
+  (RMSE 2.7 min with past performance). Coefficients aren't published, so it isn't used.

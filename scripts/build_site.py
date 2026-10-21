@@ -580,6 +580,9 @@ def main():
     import fitness_page
     fitness_page.build(plan, built)
 
+    import calculator_page
+    calculator_page.build(plan, built)
+
 
 BASE_CSS = """:root {
   --bg: #f7f7f5; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e4e3df;
@@ -631,7 +634,7 @@ header .sub { color: var(--muted); margin: 2px 0 0; font-size: 13px; }
 def tabs(current):
     """The site bar: page tabs plus the next race and a live countdown (filled in the browser, so it stays
     right between site builds)."""
-    links = [("index.html", "Calendar"), ("fitness.html", "Fitness")]
+    links = [("index.html", "Calendar"), ("fitness.html", "Fitness"), ("calculator.html", "Calculator")]
     nav = '<nav class="tabs">' + "".join(
         f'<a href="{h}"' + (' aria-current="page"' if h == current else "") + f">{t}</a>"
         for h, t in links) + "</nav>"
