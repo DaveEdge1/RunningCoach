@@ -262,7 +262,7 @@ def efficiency(runs, daily, rc):
 
 def weekly(runs, daily, cross=()):
     weeks = {}
-    new = lambda: {"mi": 0.0, "runs": 0, "hr": 0, "z": [0.0] * 5, "load": 0, "xh": 0.0, "hh": {}}
+    new = lambda: {"mi": 0.0, "runs": 0, "hr": 0, "z": [0.0] * 5, "load": 0, "xh": 0.0, "hh": {}, "secs": 0.0}
     hists = load_hr_hist()
     for c in cross:
         d = date.fromisoformat(c["date"])
@@ -273,6 +273,8 @@ def weekly(runs, daily, cross=()):
         d = date.fromisoformat(r["date"])
         w = weeks.setdefault(d - timedelta(d.weekday()), new())
         w["mi"] += float(r["miles"])
+        m, sec = r["pace"].split(":")  # moving time from distance x pace: counts runs without HR (manual runs) too
+        w["secs"] += float(r["miles"]) * (int(m) * 60 + int(sec))
         w["runs"] += 1
         w["load"] += float(r["load"] or 0)
         if r["hr_secs"]:
@@ -289,7 +291,7 @@ def weekly(runs, daily, cross=()):
         x = by_day.get(end.isoformat(), {})
         out.append({"w": wk0.isoformat(), "mi": round(w["mi"], 1), "runs": w["runs"], "load": round(w["load"]),
                     "xh": round(w["xh"], 1),
-                    "hrH": round(w["hr"] / 3600, 1),
+                    "hrH": round(w["hr"] / 3600, 1), "runH": round(w["secs"] / 3600, 1),
                     "z": [round(100 * z / w["hr"]) if w["hr"] else 0 for z in w["z"]],
                     "hh": [[b, w["hh"][b]] for b in sorted(w["hh"])],  # seconds at each bpm, runs only
                     "ctl": x.get("ctl"), "atl": x.get("atl"), "partial": end < wk0 + timedelta(6)})
@@ -1188,7 +1190,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 </section>
 
 <section class="card"><h2>Intensity by week</h2>
-<p class="note">Each week is a sideways histogram of running time at each heart rate (1 bpm bins): the farther right, the more minutes, so a bigger week draws a bigger shape. Hours are above each week; dashed lines mark LT1 (AeT) and LT2 (LT). Hover for the week's split by zone.</p>
+<p class="note">Each week is a sideways histogram of running time at each heart rate (1 bpm bins): the farther right, the more minutes, so a bigger week draws a bigger shape. Hours above each week are all running time, including runs without HR (manual ones), which the histogram can't show; dashed lines mark LT1 (AeT) and LT2 (LT). Hover for the week's split by zone.</p>
 <div class="chart tall" id="cZones"></div>
 <div class="legend">%%ZLEG%%</div>
 </section>
@@ -1420,7 +1422,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
           "V" + Y(p[0]).toFixed(1) + "H" + x.toFixed(1) + "Z";
       });
       el("path", { d: d, fill: "url(#zramp)", opacity: w.partial ? .55 : 1 }, svg);
-      el("text", { "class": "hrs", "data-i": i, x: x, y: m.t - 8 }, svg).textContent = w.hrH + " h" + (w.partial ? " so far" : "");
+      el("text", { "class": "hrs", "data-i": i, x: x, y: m.t - 8 }, svg).textContent = w.runH + " h" + (w.partial ? " so far" : "");
       el("text", { "class": "wk", "data-i": i, x: cx, y: H - 6, "text-anchor": "middle" }, ax).textContent = fmtDate(w.w);
       var hl = el("rect", { "class": "hl", x: cx - band / 2, y: m.t, width: band, height: H - m.t - m.b, display: "none" }, svg);
       var hit = el("rect", { "class": "hit", x: cx - band / 2, y: m.t, width: band, height: H - m.t - m.b }, svg);
@@ -1429,7 +1431,8 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
         hl.removeAttribute("display");
         var r = svg.getBoundingClientRect(), b = Math.floor(lo + (H - m.b - (ev.clientY - r.top) * H / r.height) / (H - m.t - m.b) * (hi - lo + 1));
         var b1 = D.breaks[0], b2 = D.breaks[1], sum = function (a, b) { return w.z.slice(a, b).reduce(function (s, x) { return s + x; }, 0); };
-        showTip("<b>Week of " + fmtDate(w.w) + (w.partial ? " (so far)" : "") + "</b> · " + w.hrH + " h · " + w.mi + " mi<br>" +
+        showTip("<b>Week of " + fmtDate(w.w) + (w.partial ? " (so far)" : "") + "</b> · " + w.runH + " h · " + w.mi + " mi<br>" +
+          (w.runH - w.hrH >= .1 ? "Histogram: the " + w.hrH + " h with HR (runs without HR, like manual ones, aren't in it)<br>" : "") +
           (b >= lo && b <= hi ? b + " bpm: " + ((at[b] || 0) / 60).toFixed(1) + " min<br>" : "") +
           "Below LT1 " + sum(0, b1 + 1) + "% · LT1–LT2 " + sum(b1 + 1, b2 + 1) + "% · Above LT2 " + sum(b2 + 1) + "%<br>" +
           D.zones.map(function (n, k) { return sw("--z" + (k + 1)) + n + ": " + w.z[k] + "%"; }).join("<br>"), ev);
