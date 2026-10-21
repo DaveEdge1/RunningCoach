@@ -75,6 +75,15 @@ HR_CEIL = _cfg["workouts"]["hr_ceiling"]  # no rep's HR_CEIL_PCT-th percentile H
 HR_CEIL_PCT = _cfg["workouts"]["hr_ceiling_percentile"]
 
 
+def zone_anchors():
+    """bpm where each zone's color is pure: interior zones at their midpoint, the open-ended
+    first/last zones half a neighbor's width past the boundary. Colors blend in between."""
+    mids = [(lo + hi) / 2 for _, lo, hi in ZONES[1:-1]]
+    first = ZONES[1][1] - (ZONES[1][2] - ZONES[1][1]) / 2
+    last = ZONES[-1][1] + (ZONES[-2][2] - ZONES[-2][1]) / 2
+    return [first] + mids + [last]
+
+
 def recovery_days(meters):
     """Easy days after a race of this distance (Daniels, rounded: 15K -> 5, half marathon -> 7)."""
     return round(meters / 1000 / RECOVERY_KM_PER_DAY)

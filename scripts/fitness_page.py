@@ -14,7 +14,7 @@ from config import (ACUTE_DAYS, ACWR_DANGER, ACWR_SWEET, AET, AET_MAX_GRADE, AET
                     HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, RECOVERY_KM_PER_DAY, REP_MIN_S, REP_PACE_TOL, ROOT,
                     HR_CEIL, HR_CEIL_PCT, THRESH_HR,
                     WORKOUT_Z5_PCT, ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race,
-                    cross_kind, recovery_days, trail_days, zone_range)
+                    cross_kind, recovery_days, trail_days, zone_anchors, zone_range)
 
 CTL_DAYS, ATL_DAYS = 42, 7
 TREND_DAYS = 28
@@ -72,6 +72,16 @@ def hms(s):
 def load_runs():
     with open(ROOT / "data" / "runs.csv", encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def load_hr_hist():
+    """{(date, start): {bpm: seconds}} from data/hr_hist.csv."""
+    path = ROOT / "data" / "hr_hist.csv"
+    if not path.exists():
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return {(r["date"], r["start"]): {int(b): int(n) for b, n in (x.split(":") for x in r["bpm_secs"].split())}
+                for r in csv.DictReader(f)}
 
 
 def load_cross():
@@ -252,7 +262,8 @@ def efficiency(runs, daily, rc):
 
 def weekly(runs, daily, cross=()):
     weeks = {}
-    new = lambda: {"mi": 0.0, "runs": 0, "hr": 0, "z": [0.0] * 5, "load": 0, "xh": 0.0}
+    new = lambda: {"mi": 0.0, "runs": 0, "hr": 0, "z": [0.0] * 5, "load": 0, "xh": 0.0, "hh": {}}
+    hists = load_hr_hist()
     for c in cross:
         d = date.fromisoformat(c["date"])
         w = weeks.setdefault(d - timedelta(d.weekday()), new())
@@ -268,6 +279,8 @@ def weekly(runs, daily, cross=()):
             n = int(r["hr_secs"])
             w["hr"] += n
             w["z"] = [z + float(r[c]) * n / 100 for z, c in zip(w["z"], ZONE_COLS)]
+        for b, n in hists.get((r["date"], r["start"]), {}).items():
+            w["hh"][b] = w["hh"].get(b, 0) + n
     by_day = {x["d"]: x for x in daily}
     out = []
     for wk0 in sorted(weeks):
@@ -278,6 +291,7 @@ def weekly(runs, daily, cross=()):
                     "xh": round(w["xh"], 1),
                     "hrH": round(w["hr"] / 3600, 1),
                     "z": [round(100 * z / w["hr"]) if w["hr"] else 0 for z in w["z"]],
+                    "hh": [[b, w["hh"][b]] for b in sorted(w["hh"])],  # seconds at each bpm, runs only
                     "ctl": x.get("ctl"), "atl": x.get("atl"), "partial": end < wk0 + timedelta(6)})
     return out
 
@@ -970,7 +984,7 @@ def build(plan, built):
         for w in reversed(weeks))
 
     data = {"daily": daily, "weeks": weeks, "eff": pts, "trend": trend, "trendDays": TREND_DAYS, "today": today.isoformat(),
-            "aet": AET, "zones": [f"{n} {zone_range(lo, hi)}" for n, lo, hi in ZONES],
+            "aet": AET, "lt": LT, "zanc": [round(a, 1) for a in zone_anchors()], "zones": [f"{n} {zone_range(lo, hi)}" for n, lo, hi in ZONES],
             "breaks": [1, 3],  # zone indexes below the LT1 (AeT) and LT2 (LT) boundaries
             "proj": [{k: x[k] for k in ("d", "ctl", "atl", "formPct", "acwr", "plan", "mi", "s", "xload")} for x in proj],
             "acwrSweet": ACWR_SWEET, "acwrDanger": ACWR_DANGER, "goal": goal}
@@ -1050,7 +1064,7 @@ def build(plan, built):
             "HOME_ELEV": f"{HOME_ELEV_FT:,}", "TREND_DAYS": str(TREND_DAYS), "CTL": str(CTL_DAYS),
             "PRIOR_FROM": md(pfrom), "ATL": str(ATL_DAYS), "FRESH": str(FRESH), "TIRED": str(TIRED).replace("-", "−"), "AET": str(AET), "ABOUT": about,
             "ZLEG": "".join(f'<span><i class="z{i + 1}"></i>{n} {zone_range(lo, hi)}</span>' for i, (n, lo, hi) in enumerate(ZONES))
-                    + '<span><span class="ln brk"></span>LT1 / LT2 break</span>'}
+                    + '<span><span class="ln dash"></span>LT1 (AeT) / LT2 (LT)</span>'}
     page = TEMPLATE
     for k, v in subs.items():
         page = page.replace(f"%%{k}%%", v)
@@ -1094,7 +1108,8 @@ TEMPLATE = """<!doctype html>
 .range .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 #rLabel { min-width: 120px; text-align: center; font-variant-numeric: tabular-nums; font-size: 13px; }
 .chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.chart.short { height: 150px; }
+.chart.short { height: 150px; } .chart.tall { height: 320px; }
+.zh text.hrs { fill: var(--muted); font-size: 11px; } .zh .thr { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; opacity: .6; }
 .legend .ln.dash { background: repeating-linear-gradient(90deg, var(--muted) 0 4px, transparent 4px 7px); }
 .legend .ln.dot { background: repeating-linear-gradient(90deg, var(--s2) 0 2px, transparent 2px 5px); }
 .legend .band { display: inline-block; width: 12px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
@@ -1105,8 +1120,6 @@ TEMPLATE = """<!doctype html>
 .grid line { stroke: var(--line); stroke-width: 1; }
 .axis text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .zero { stroke: var(--muted); stroke-width: 1; }
-.brk { stroke: var(--ink); stroke-width: 1.5; }
-.legend .ln.brk { background: var(--ink); }
 .guide { stroke: var(--muted); stroke-width: 1; }
 .lbl { fill: var(--ink); font-size: 11px; font-weight: 600; }
 .hit { fill: transparent; cursor: crosshair; }
@@ -1175,8 +1188,8 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 </section>
 
 <section class="card"><h2>Intensity by week</h2>
-<p class="note">Share of time in each HR zone. Wider breaks mark LT1 (AeT) and LT2 (LT).</p>
-<div class="chart" id="cZones"></div>
+<p class="note">Each week is a sideways histogram of running time at each heart rate (1 bpm bins): the farther right, the more minutes, so a bigger week draws a bigger shape. Hours are above each week; dashed lines mark LT1 (AeT) and LT2 (LT). Hover for the week's split by zone.</p>
+<div class="chart tall" id="cZones"></div>
 <div class="legend">%%ZLEG%%</div>
 </section>
 
@@ -1375,45 +1388,57 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     var ws = D.weeks.filter(function (w) { return w.hrH > 0 && day(w.w) + 7 > x0 && day(w.w) < x1; });
     if (!ws.length) { document.getElementById("cZones").innerHTML = ""; return; }
     var box = document.getElementById("cZones"); box.innerHTML = "";
-    var W = box.clientWidth, H = box.clientHeight, m = { l: 40, r: 14, t: 10, b: 22 };
-    var svg = el("svg", { viewBox: "0 0 " + W + " " + H }, box);
-    var Y = function (v) { return H - m.b - v / 100 * (H - m.t - m.b); };
+    var W = box.clientWidth, H = box.clientHeight, m = { l: 40, r: 50, t: 22, b: 22 };
+    var svg = el("svg", { "class": "zh", viewBox: "0 0 " + W + " " + H }, box);
+    // HR range: all visible weeks together, trimmed of the 0.5% tails at each end, to whole 10s
+    var tot = {}, all = 0;
+    ws.forEach(function (w) { w.hh.forEach(function (p) { tot[p[0]] = (tot[p[0]] || 0) + p[1]; all += p[1]; }); });
+    var bs = Object.keys(tot).map(Number).sort(function (a, b) { return a - b; }), cum = 0, lo = bs[0], hi = bs[bs.length - 1], i;
+    for (i = 0; i < bs.length; i++) { cum += tot[bs[i]]; if (cum > all * .005) { lo = bs[i]; break; } }
+    cum = 0; for (i = bs.length - 1; i >= 0; i--) { cum += tot[bs[i]]; if (cum > all * .005) { hi = bs[i]; break; } }
+    lo = Math.floor(Math.min(lo, D.aet - 5) / 10) * 10; hi = Math.ceil(Math.max(hi, D.lt + 3) / 10) * 10;
+    var Y = function (b) { return H - m.b - (b - lo) / (hi - lo + 1) * (H - m.t - m.b); };  // bottom edge of bin b
     var g = el("g", { "class": "grid" }, svg), ax = el("g", { "class": "axis" }, svg);
-    [0, 50, 100].forEach(function (v) {
-      el("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }, g);
-      el("text", { x: m.l - 6, y: Y(v) + 4, "text-anchor": "end" }, ax).textContent = v + "%";
+    for (var v = lo; v <= hi; v += 10) {
+      el("line", { x1: m.l, x2: W - m.r, y1: Y(v + .5), y2: Y(v + .5) }, g);
+      el("text", { x: m.l - 6, y: Y(v + .5) + 4, "text-anchor": "end" }, ax).textContent = v;
+    }
+    var band = (W - m.l - m.r) / ws.length, len = band - 10;
+    var peak = Math.max.apply(null, ws.map(function (w) { return Math.max.apply(null, w.hh.map(function (p) { return p[0] >= lo && p[0] <= hi ? p[1] : 0; })); }));
+    var A = D.zanc, grad = el("linearGradient", { id: "zramp", gradientUnits: "userSpaceOnUse", x1: 0, x2: 0,
+      y1: Y(A[0] + .5), y2: Y(A[A.length - 1] + .5) }, el("defs", {}, svg));  // same continuous ramp as the calendar
+    A.forEach(function (b, j) { el("stop", { offset: (b - A[0]) / (A[A.length - 1] - A[0]), style: "stop-color:var(--z" + (j + 1) + ")" }, grad); });
+    [[D.aet, "LT1 " + D.aet], [D.lt, "LT2 " + D.lt]].forEach(function (t) {
+      el("line", { "class": "thr", x1: m.l, x2: W - m.r, y1: Y(t[0]), y2: Y(t[0]) }, svg);
+      el("text", { x: W - m.r + 4, y: Y(t[0]) + 4 }, ax).textContent = t[1];
     });
-    var band = (W - m.l - m.r) / ws.length, bw = Math.min(24, band - 6);
     ws.forEach(function (w, i) {
-      var cx = m.l + band * (i + .5), acc = 0, top = 0, prev = -1;
-      w.z.forEach(function (z, k) { if (z > 0) top = k; });
-      w.z.forEach(function (z, k) {
-        if (z <= 0) return;
-        var yb = Y(acc), yt = Y(acc + z);
-        // 2px surface gap between segments; a wider gap and a rule where a threshold (LT1/LT2) is crossed
-        var isBreak = prev >= 0 && D.breaks.some(function (b) { return prev <= b && b < k; });
-        var gap = prev < 0 ? 0 : isBreak ? 6 : 2;
-        if (isBreak) el("line", { "class": "brk", x1: cx - bw / 2 - 5, x2: cx + bw / 2 + 5, y1: yb - gap / 2, y2: yb - gap / 2 }, svg);
-        if (yb - gap - yt >= 1) {
-          var d = k === top ? colPath(cx - bw / 2, bw, yt, yb - gap) : "M" + (cx - bw / 2) + "," + (yb - gap) + "V" + yt + "H" + (cx + bw / 2) + "V" + (yb - gap) + "Z";
-          el("path", { d: d, "class": "z" + (k + 1) }, svg);
-        }
-        acc += z; prev = k;
+      var cx = m.l + band * (i + .5), x = cx - band / 2 + 5, d = "";
+      w.hh.forEach(function (p) {
+        if (p[0] < lo || p[0] > hi) return;
+        d += "M" + x.toFixed(1) + "," + Y(p[0] + 1).toFixed(1) + "h" + (p[1] / peak * len).toFixed(1) +
+          "V" + Y(p[0]).toFixed(1) + "H" + x.toFixed(1) + "Z";
       });
-      el("text", { x: cx, y: H - 6, "text-anchor": "middle" }, ax).textContent = fmtDate(w.w);
+      el("path", { d: d, fill: "url(#zramp)", opacity: w.partial ? .55 : 1 }, svg);
+      el("text", { "class": "hrs", "data-i": i, x: x, y: m.t - 8 }, svg).textContent = w.hrH + " h" + (w.partial ? " so far" : "");
+      el("text", { "class": "wk", "data-i": i, x: cx, y: H - 6, "text-anchor": "middle" }, ax).textContent = fmtDate(w.w);
       var hl = el("rect", { "class": "hl", x: cx - band / 2, y: m.t, width: band, height: H - m.t - m.b, display: "none" }, svg);
       var hit = el("rect", { "class": "hit", x: cx - band / 2, y: m.t, width: band, height: H - m.t - m.b }, svg);
+      var at = {}; w.hh.forEach(function (p) { at[p[0]] = p[1]; });
       hit.addEventListener("pointermove", function (ev) {
         hl.removeAttribute("display");
+        var r = svg.getBoundingClientRect(), b = Math.floor(lo + (H - m.b - (ev.clientY - r.top) * H / r.height) / (H - m.t - m.b) * (hi - lo + 1));
         var b1 = D.breaks[0], b2 = D.breaks[1], sum = function (a, b) { return w.z.slice(a, b).reduce(function (s, x) { return s + x; }, 0); };
-        showTip("<b>Week of " + fmtDate(w.w) + (w.partial ? " (so far)" : "") + "</b> · " + w.hrH + " h<br>" +
+        showTip("<b>Week of " + fmtDate(w.w) + (w.partial ? " (so far)" : "") + "</b> · " + w.hrH + " h · " + w.mi + " mi<br>" +
+          (b >= lo && b <= hi ? b + " bpm: " + ((at[b] || 0) / 60).toFixed(1) + " min<br>" : "") +
           "Below LT1 " + sum(0, b1 + 1) + "% · LT1–LT2 " + sum(b1 + 1, b2 + 1) + "% · Above LT2 " + sum(b2 + 1) + "%<br>" +
           D.zones.map(function (n, k) { return sw("--z" + (k + 1)) + n + ": " + w.z[k] + "%"; }).join("<br>"), ev);
       });
       hit.addEventListener("pointerleave", function () { hl.setAttribute("display", "none"); hideTip(); });
     });
-    // thin labels on narrow screens
-    if (band < 44) Array.prototype.forEach.call(ax.querySelectorAll("text"), function (t, i) { if (i >= 3 && (i - 3) % 2) t.textContent = ""; });
+    // thin week labels and hours on narrow screens
+    if (band < 44) Array.prototype.forEach.call(svg.querySelectorAll("text.wk, text.hrs"), function (t) {
+      if (+t.getAttribute("data-i") % 2) t.textContent = ""; });
   }
 
   function dot(f, cx, cy, r, filled, color) {

@@ -6,7 +6,7 @@ import calendar, csv, html, itertools, re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from config import AET, CROSS_NAMES, LT, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, load_races, next_race, trail_laps, zone_range
+from config import AET, CROSS_NAMES, LT, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, load_races, next_race, trail_laps, zone_anchors, zone_range
 TYPES = {"easy": "Easy", "long": "Long", "workout": "Workout", "race": "Race",
          "cross": "Cross-train", "off": "Off"}
 
@@ -124,15 +124,6 @@ def zone_bar(zones, total):
 
 HIST_TAIL_SECS = 60            # trim each tail of the curve by up to this much time (dropouts, spikes)
 HIST_KERNEL = [1, 2, 3, 2, 1]  # triangular smoothing over 5 bpm
-
-
-def zone_anchors():
-    """bpm where each zone's color is pure: interior zones at their midpoint, the open-ended
-    first/last zones half a neighbor's width past the boundary. Colors blend in between."""
-    mids = [(lo + hi) / 2 for _, lo, hi in ZONES[1:-1]]
-    first = ZONES[1][1] - (ZONES[1][2] - ZONES[1][1]) / 2
-    last = ZONES[-1][1] + (ZONES[-2][2] - ZONES[-2][1]) / 2
-    return [first] + mids + [last]
 
 
 _grad_ids = itertools.count(1)
