@@ -13,3 +13,5 @@ data/update.log
 
 # Strava bulk export (GPS tracks)
 data/Strava_export_*/
+# Personal running log (family notes)
+data/Running log - 2024-25.csv
