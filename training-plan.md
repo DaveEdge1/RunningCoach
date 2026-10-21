@@ -34,7 +34,7 @@ Weeks 2–4 build 38 → 41 → 43 (about 2–3 mi a week, all of it easy). Afte
 | 5 | Nov 9–15 | 23 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10): ~4 h down Tanner, 6 h up New Hance, 35-lb pack | Sat 9 |
 | 6 | Nov 16–22 | 45 | Tue 5 × 1 km at interval pace | Fri 12, last 2 steady |
 | 7 | Nov 23–29 | 45 | **Puerto Peñasco** (Sat Nov 21–Wed Nov 25): Tue 4 × 1 km at 5K goal pace (4:12/km, sea level) · Thu 3 × 1.5 mi threshold | Sat 12 |
-| 8 | Nov 30–Dec 6 | 29.5 · **cut-back** | Tue **5K time trial** (race-distance rehearsal and checkpoint for the goal) · **Elk hunt** (Thu Dec 3–Sun Dec 6): 3 easy at lunch each day | n/a |
+| 8 | Nov 30–Dec 6 | 31.5 · **cut-back** (6 days) | Tue **5K time trial** (race-distance rehearsal and checkpoint for the goal) · **Elk hunt** (Thu Dec 3–Sun Dec 6): 3 easy at lunch Thu and Sun, Fri off (changed 2026-10-21) | Sat 8 |
 | 9 | Dec 7–13 | 45 | Tue **5 × 1000 m at 7:02, 200 m jog** (goal pace at Flagstaff) · Thu 3 × 1.5 mi threshold | Sat 12, last 2 steady |
 | 10 | Dec 14–20 | 42 | Tue **5 × 1000 m at 7:02, 200 m jog** (repeat of Dec 8) · Thu 3 × 1 mi threshold | Sat 8 (shortened) |
 | 11 | Dec 21–26 | ~16 + race · **taper** | Tue 3 × 1 km at goal effort + 4 × 200 m | **Sat: RACE (5K)** |
