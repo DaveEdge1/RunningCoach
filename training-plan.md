@@ -29,8 +29,8 @@ Weeks 2–4 build 38 → 41 → 43 (about 2–3 mi a week, all of it easy). Afte
 |---|---|---|---|---|
 | 1 | Oct 12–18 | 32 | Race recovery: easy only | Sat 9 |
 | 2 | Oct 19–25 | 38 | Tue 4 × 1 mi threshold · Sat–Sun away (miles moved to Thu–Fri) | Fri 10 |
-| 3 | Oct 26–Nov 1 | 41 | Tue 3 × 1.5 mi threshold | Sat 11 |
-| 4 | Nov 2–8 | 43 | Tue **5K time trial** (current-fitness check, added 2026-10-20; replaces 2 × 2 mi threshold) | Fri 12 |
+| 3 | Oct 26–Nov 1 | 39.5 | Tue **5K time trial** (current-fitness check; moved up from Nov 3 on 2026-10-21 to space it from the Nov 30 trial) | Sat 11 |
+| 4 | Nov 2–8 | 44.5 | Tue 3 × 1.5 mi threshold (swapped with the time trial) | Fri 12 |
 | 5 | Nov 9–15 | 23 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10): ~4 h down Tanner, 6 h up New Hance, 35-lb pack | Sat 9 |
 | 6 | Nov 16–22 | 45 | Tue 5 × 1 km at interval pace | Fri 12, last 2 steady |
 | 7 | Nov 23–29 | 45 | **Puerto Peñasco** (Sat Nov 21–Wed Nov 25): Tue 4 × 1 km at 5K goal pace (4:12/km, sea level) · Thu 3 × 1.5 mi threshold | Sat 12 |
@@ -39,7 +39,7 @@ Weeks 2–4 build 38 → 41 → 43 (about 2–3 mi a week, all of it easy). Afte
 | 10 | Dec 14–20 | 42 | Tue **5 × 1000 m at 7:02, 200 m jog** (repeat of Dec 8) · Thu 3 × 1 mi threshold | Sat 8 (shortened) |
 | 11 | Dec 21–26 | ~16 + race · **taper** | Tue 3 × 1 km at goal effort + 4 × 200 m | **Sat: RACE (5K)** |
 
-Paces come from the most recent race or time trial: the Oct 10 10K until the Nov 3 time trial, then Nov 30, which also checks progress toward the goal. Run both on a track or flat, smooth loop, evenly: about 7:20/mi to start (the 10K converts to roughly 22:45–23:00 at 7,000 ft), racing the last mile. "Goal" sessions use 21:00 converted to the altitude where they're run. See `plan.csv` (or the calendar) for each day.
+Paces come from the most recent race or time trial: the Oct 10 10K until the Oct 27 time trial, then Nov 30, which also checks progress toward the goal. Run both on a track or flat, smooth loop, evenly: about 7:20/mi to start (the 10K converts to roughly 22:45–23:00 at 7,000 ft), racing the last mile. "Goal" sessions use 21:00 converted to the altitude where they're run. See `plan.csv` (or the calendar) for each day.
 
 ## This week and next, day by day
 **Week 1 (Oct 12–18), race recovery, 32 mi on 6 days, all easy**
