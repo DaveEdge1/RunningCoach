@@ -16,7 +16,7 @@ This folder is David's running log; Claude acts as his running coach.
 ## Context
 - Lives in Flagstaff, AZ (~7,000 ft). Factor altitude into pace and HR interpretation.
 - Uses imperial units.
-- `data/prior_weeks.csv`: weekly totals David reported for Jun 15–Aug 17 2026, before the recorded data (all he has). They feed only the 12- and 26-week averages on the Mileage chart; a week that overlaps recorded runs adds just the remainder. He didn't run before Jun 15, so the 26-week average starts with the 12-week line.
+- `data/prior_weeks.csv`: weekly totals David reported for Jun 15–Aug 17 2026, before the recorded data. They feed only the 12- and 26-week averages on the Mileage chart; a week that overlaps recorded runs adds just the remainder. He didn't run from Nov 2025 to Jun 14 2026, so the 26-week average starts with the 12-week line. His earlier running (Apr 2024–Oct 2025) is in `data/Running log - 2024-25.csv`, summarized in profile.md; it doesn't feed the site.
 - Hand-made FIT files (e.g., when he forgets his watch) go in `data/manual_runs.txt`. They count toward mileage but are excluded from HR and pace analysis.
 - `training-plan.md`: current block (Phoenix 5K, Dec 26 2026; switched from the 10K on 2026-10-15). Compare actual runs against it and adjust week by week.
 

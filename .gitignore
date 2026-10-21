@@ -10,3 +10,6 @@ data/activities.json
 
 __pycache__/
 data/update.log
+
+# Strava bulk export (GPS tracks)
+data/Strava_export_*/
