@@ -128,9 +128,9 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 <button class="add" id="add">+ Add a race</button>
 <h3>Paces (per mile, flat ground)</h3>
 <div class="form">
-  <label>LT2: threshold pace<input id="lt2" placeholder="m:ss" inputmode="numeric"></label>
+  <label>LT2: threshold pace<input id="lt2" class="clock" placeholder="7:05 or 705" inputmode="decimal"></label>
   <label>LT2 means<select id="lt2def"><option value="hrv">All-out pace for 10–15 km (HRV4Training)</option><option value="daniels">1-hour race pace (Daniels T)</option></select></label>
-  <label>LT1: aerobic threshold pace<input id="lt1" placeholder="m:ss" inputmode="numeric"></label>
+  <label>LT1: aerobic threshold pace<input id="lt1" class="clock" placeholder="9:10 or 910" inputmode="decimal"></label>
   <label>Paces run at elevation (ft)<input id="pe" inputmode="numeric"></label>
 </div>
 <h3>Training and target</h3>
@@ -245,9 +245,16 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
     var h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60;
     return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0");
   }
-  function parseClock(s) {
-    var p = String(s).trim().split(":");
-    if (p.length > 3 || p.some(function (x) { return !/^\\d+(\\.\\d+)?$/.test(x); })) return null;
+  function parseClock(s) {  // "7:05", "1:42:05", or for phone keypads without a colon "7.05" / "705" / "14205"
+    s = String(s).trim();
+    var p;
+    if (/^\d+$/.test(s)) {  // digits only: the last two are seconds, the two before minutes, the rest hours
+      p = s.length <= 2 ? [s, "0"] : [s.slice(0, -4), s.slice(-4, -2), s.slice(-2)].filter(function (x) { return x; });
+    } else {
+      p = s.split(s.indexOf(":") >= 0 ? ":" : /[.,\s]+/);
+    }
+    if (p.length > 3 || p.some(function (x) { return !/^\d+(\.\d+)?$/.test(x); })) return null;
+    if (p.slice(1).some(function (x) { return parseFloat(x) >= 60; })) return null;  // seconds and minutes under 60
     return p.reduce(function (t, x) { return t * 60 + parseFloat(x); }, 0) || null;
   }
   function num(el) { var v = parseFloat(el.value.replace(/,/g, "")); return isFinite(v) ? v : null; }
@@ -266,7 +273,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
     row.className = "race";
     row.innerHTML = '<input type="checkbox" class="use" aria-label="Use this race"><input type="date" class="date" aria-label="Date">' +
       '<span class="dist"><select class="d" aria-label="Distance">' + distOpts + '</select><input class="c" inputmode="decimal" aria-label="Miles" hidden></span>' +
-      '<input class="t" placeholder="mm:ss" inputmode="numeric" aria-label="Time"><input class="e" inputmode="numeric" aria-label="Elevation (ft)">' +
+      '<input class="t clock" placeholder="47:55 or 4755" inputmode="decimal" aria-label="Time"><input class="e" inputmode="numeric" aria-label="Elevation (ft)">' +
       '<button class="x" aria-label="Remove">×</button>';
     var q = function (c) { return row.querySelector("." + c); };
     q("use").checked = r ? r.use : true;
@@ -305,7 +312,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
       if (!q("use").checked) return;
       var traw = q("t").value.trim(); if (!traw) return;
       var t = parseClock(traw), m = q("d").value === "c" ? parseFloat(q("c").value) * MI : parseFloat(q("d").value), e = num(q("e"));
-      if (!t) return bad(q("t"), "Race times look like 21:30 or 1:42:05.");
+      if (!t) return bad(q("t"), "Race times look like 21:30, 2130 or 1:42:05.");
       if (!(m > 0)) return bad(q("c"), "Enter the race distance in miles.");
       if (e === null) return bad(q("e"), "Enter each race's elevation.");
       out.races.push({ m: m, t: t, e: e, date: q("date").value });
@@ -314,7 +321,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
     ["lt2", "lt1"].forEach(function (id) {
       var raw = $(id).value.trim(); if (!raw) return;
       var p = parseClock(raw);
-      if (!p) return bad($(id), "Paces look like 7:05.");
+      if (!p) return bad($(id), "Paces look like 7:05 or 705.");
       if (pe === null) return bad($("pe"), "Enter the elevation the paces were run at.");
       out[id] = p;
     });
@@ -481,7 +488,10 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
   }
 
   document.querySelector("main").addEventListener("input", compute);
-  document.querySelector("main").addEventListener("change", compute);
+  document.querySelector("main").addEventListener("change", function (ev) {  // show what was read, as m:ss
+    if (ev.target.classList.contains("clock")) { var t = parseClock(ev.target.value); if (t) ev.target.value = hms(t); }
+    compute();
+  });
   compute();
 })();
 </script>
