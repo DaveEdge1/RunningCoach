@@ -17,7 +17,7 @@ from config import (ACUTE_DAYS, ACWR_DANGER, ACWR_SWEET, AET, AET_MAX_GRADE, AET
                     cross_kind, recovery_days, trail_days, zone_range)
 
 CTL_DAYS, ATL_DAYS = 42, 7
-TREND_DAYS = 21
+TREND_DAYS = 14
 TREND_MIN_RUNS = 3  # runs that must qualify in the window
 EF_ELEV_TOL_FT = 1000  # pace-at-AeT uses only runs within this of home elevation
 FRESH, TIRED = 5, -10  # form % thresholds
@@ -246,7 +246,7 @@ def efficiency(runs, daily, rc):
         d = date.fromisoformat(x["d"])
         win = [p for p in use if 0 <= (d - date.fromisoformat(p["d"])).days < TREND_DAYS]
         if len(win) >= TREND_MIN_RUNS:
-            trend.append({"d": x["d"], "p": round(sum(p["p"] * p["n"] for p in win) / sum(p["n"] for p in win), 1)})
+            trend.append({"d": x["d"], "p": round(statistics.median(p["p"] for p in win), 1)})
     return pts, trend
 
 
@@ -626,7 +626,8 @@ def build(plan, built):
     # tiles
     prev28 = sum(x["mi"] for x in daily[-56:-28]) / 4 if len(daily) >= 56 else None
     t_now = trend[-1]["p"] if trend else None
-    t_ago = next((t["p"] for t in trend if t["d"] == ago["d"]), None) if ago and trend else None
+    # latest trend value on or before that day: a 14-day window leaves gaps where fewer than TREND_MIN_RUNS qualify
+    t_ago = next((t["p"] for t in reversed(trend) if t["d"] <= ago["d"]), None) if ago and trend else None
     fp = now["formPct"]
     form_word = "fresh" if fp > FRESH else "carrying fatigue" if fp < TIRED else "neutral"
     volume = [
@@ -644,7 +645,7 @@ def build(plan, built):
     fit_t = []
     if t_now:
         fit_t.append(tile(f"Pace at AeT ({AET} bpm)", f"{mmss(t_now)}/mi",
-                          f"{TREND_DAYS}-day trend at {HOME_ELEV_FT:,} ft",
+                          f"{TREND_DAYS}-day median at {HOME_ELEV_FT:,} ft",
                           (signed((t_now - t_ago) / 1, "{:.0f}", good_up=False) + " s/mi vs. 4 weeks ago") if t_ago else ""))
     best = fitness_basis(rc)
 
@@ -992,7 +993,7 @@ def build(plan, built):
         f"after racing: 3 days for a 10K) "
         f"show as open circles and stay out of the trend. Trail runs (marked in notes.md) are left out: grade adjustment "
         f"doesn't account for rough footing. A run needs at least {EF_MIN_SECS // 60} minutes "
-        f"of those seconds. The trend weights each run by how many seconds qualified over the past {TREND_DAYS} days (at least {TREND_MIN_RUNS} runs), and each "
+        f"of those seconds. The trend is the median of the runs in the past {TREND_DAYS} days (at least {TREND_MIN_RUNS} runs), so one odd day doesn't move it, and each "
         f"point is drawn at the center of its window, so the line stops about {TREND_DAYS // 2} days short of today. "
         f"Only runs within {EF_ELEV_TOL_FT:,} ft of {HOME_NAME} ({HOME_ELEV_FT:,} ft) count, so the number is a "
         f"{HOME_NAME}-altitude pace.</p>\n"
@@ -1170,7 +1171,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <section class="card"><h2>Aerobic efficiency: pace at %%AET%% bpm, at %%HOME_ELEV%% ft</h2>
 <p class="note">Estimated from grade-adjusted easy running near AeT, after the warm-up and before any hard effort. Faster is up. Dots are single runs, colored by form going into that day, so a slow dot on a tired day isn't a sign of lost fitness. Open circles are runs in the days after a race, left out of the trend. Trail runs are left out.</p>
 <div class="chart" id="cEff"></div>
-<div class="legend"><span><span class="ln" style="background:var(--s7)"></span>%%TREND_DAYS%%-day trend</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span><span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>Race recovery</span></div>
+<div class="legend"><span><span class="ln" style="background:var(--s7)"></span>%%TREND_DAYS%%-day median</span><span><span class="dt" style="background:var(--fresh)"></span>Fresh (form &gt; +%%FRESH%%%)</span><span><span class="dt" style="background:var(--neutral)"></span>Neutral</span><span><span class="dt" style="background:var(--tired)"></span>Tired (form &lt; %%TIRED%%%)</span><span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>Race recovery</span></div>
 </section>
 
 <section class="card"><h2>Intensity by week</h2>
