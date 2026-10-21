@@ -17,7 +17,7 @@ from config import (ACUTE_DAYS, ACWR_DANGER, ACWR_SWEET, AET, AET_MAX_GRADE, AET
                     cross_kind, recovery_days, trail_days, zone_range)
 
 CTL_DAYS, ATL_DAYS = 42, 7
-TREND_DAYS = 14
+TREND_DAYS = 28
 TREND_MIN_RUNS = 3  # runs that must qualify in the window
 EF_ELEV_TOL_FT = 1000  # pace-at-AeT uses only runs within this of home elevation
 FRESH, TIRED = 5, -10  # form % thresholds
@@ -626,7 +626,7 @@ def build(plan, built):
     # tiles
     prev28 = sum(x["mi"] for x in daily[-56:-28]) / 4 if len(daily) >= 56 else None
     t_now = trend[-1]["p"] if trend else None
-    # latest trend value on or before that day: a 14-day window leaves gaps where fewer than TREND_MIN_RUNS qualify
+    # latest trend value on or before that day: the window leaves gaps where fewer than TREND_MIN_RUNS qualify
     t_ago = next((t["p"] for t in reversed(trend) if t["d"] <= ago["d"]), None) if ago and trend else None
     fp = now["formPct"]
     form_word = "fresh" if fp > FRESH else "carrying fatigue" if fp < TIRED else "neutral"
@@ -1151,10 +1151,10 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 %%NEXT%%
 
 <div class="range" role="group" aria-label="Chart time range">
-  <div class="seg" id="rSpan"><button data-span="30">30 days</button><button data-span="90">90 days</button><button data-span="0">All</button></div>
+  <div class="seg" id="rSpan"><button data-span="28">4 wk</button><button data-span="56">8 wk</button><button data-span="84">12 wk</button><button data-span="0">All</button></div>
   <button id="rPrev" aria-label="Earlier">‹</button><span id="rLabel"></span><button id="rNext" aria-label="Later">›</button>
   <button id="rLatest">Latest</button>
-  <span class="dim">Drag a chart to scroll</span>
+  <span class="dim">Drag a chart to scroll · pinch or Ctrl + scroll to zoom</span>
 </div>
 <section class="card"><h2>Mileage</h2>
 <p class="note">Mon–Sun totals, with 28-day, 12-week and 26-week rolling averages (mi/wk). The longer averages are the slower layer: aerobic base built over months. They include the weekly totals from before the recorded data (data/prior_weeks.csv, from %%PRIOR_FROM%%).</p>
@@ -1263,7 +1263,8 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   }
 
   var FIRST = day(D.daily[0].d), LAST = day(D.daily[D.daily.length - 1].d) + 1;
-  var span = 30, vEnd = LAST, x0, x1;  // visible window [x0, x1) in days
+  var span = 84, vEnd = LAST, x0, x1;  // visible window [x0, x1) in days; 12 weeks by default
+  var MIN_SPAN = 14;  // narrowest zoom
   function setWindow() {
     var sp = span === 0 ? LAST - FIRST : Math.min(span, LAST - FIRST);
     vEnd = Math.max(FIRST + sp, Math.min(LAST, vEnd));
@@ -1559,11 +1560,49 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     var box = document.getElementById(id), startX = null, startEnd, raf = 0;
     box.addEventListener("pointerdown", function (ev) { startX = ev.clientX; startEnd = vEnd; box.setPointerCapture(ev.pointerId); });
     box.addEventListener("pointermove", function (ev) {
-      if (startX === null) return;
+      if (startX === null || pinching) return;
       var plotW = box.clientWidth - 54, dd = Math.round((startX - ev.clientX) / plotW * (x1 - x0));
       if (dd !== vEnd - startEnd && !raf) raf = requestAnimationFrame(function () { raf = 0; hideTip(); vEnd = startEnd + dd; render(); });
     });
     ["pointerup", "pointercancel"].forEach(function (t) { box.addEventListener(t, function () { startX = null; }); });
+  });
+  var pinching = false;  // two fingers down: zoom, not pan
+  // zoom: Ctrl + wheel (a trackpad pinch arrives as one) or a two-finger pinch, keeping the day under the pointer in place
+  function zoomAt(factor, box, clientX) {
+    var all = LAST - FIRST, sp = x1 - x0, r = box.getBoundingClientRect();
+    var frac = Math.max(0, Math.min(1, (clientX - r.left - 40) / (r.width - 54)));
+    var nsp = Math.max(Math.min(MIN_SPAN, all), Math.min(all, Math.round(sp * factor)));
+    if (nsp === sp) return;
+    var a = x0 + frac * sp;
+    span = nsp >= all ? 0 : nsp;
+    vEnd = Math.round(a - frac * nsp) + nsp;
+    hideTip(); render();
+  }
+  ["cMiles", "cLoad", "cEff", "cZones"].forEach(function (id) {
+    var box = document.getElementById(id), touches = {}, pinch0 = null;
+    box.addEventListener("wheel", function (ev) {
+      if (!ev.ctrlKey) return;  // a plain wheel scrolls the page
+      ev.preventDefault();
+      zoomAt(Math.exp(ev.deltaY * 0.004), box, ev.clientX);  // a mouse notch (100) is about 1.5×
+    }, { passive: false });
+    function gap() { var p = Object.values(touches); return Math.abs(p[0].x - p[1].x); }
+    box.addEventListener("pointerdown", function (ev) {
+      if (ev.pointerType !== "touch") return;
+      touches[ev.pointerId] = { x: ev.clientX };
+      if (Object.keys(touches).length === 2) { pinch0 = gap(); pinching = true; }
+    });
+    box.addEventListener("pointermove", function (ev) {
+      if (!(ev.pointerId in touches)) return;
+      touches[ev.pointerId].x = ev.clientX;
+      if (pinch0 && Object.keys(touches).length === 2) {
+        var g = gap(), p = Object.values(touches);
+        if (g > 10 && Math.abs(g / pinch0 - 1) > 0.08) { zoomAt(pinch0 / g, box, (p[0].x + p[1].x) / 2); pinch0 = g; }
+      }
+    });
+    ["pointerup", "pointercancel"].forEach(function (t) { box.addEventListener(t, function (ev) {
+      delete touches[ev.pointerId];
+      if (!Object.keys(touches).length) pinching = false;  // stays set until every finger lifts, so the last one doesn't pan
+      if (Object.keys(touches).length < 2) pinch0 = null; }); });
   });
   render(); renderStatic();
   var rt; window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { render(); renderStatic(); }, 120); });

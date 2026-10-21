@@ -63,7 +63,7 @@
     "lap_settle_s": 120,
     "min_minutes": 4,
     "max_speed_cv_pct": 10,
-    "rolling_days": 14,
+    "rolling_days": 28,
     "calibration_races": 3
   },
   "workouts": {
