@@ -6,7 +6,7 @@ import calendar, csv, html, itertools, re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from config import AET, CROSS_NAMES, LT, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, load_races, next_race, zone_range
+from config import AET, CROSS_NAMES, LT, ROOT, TZ, ZONE_NAMES as ZONE_COLS, ZONES, load_races, next_race, trail_laps, zone_range
 TYPES = {"easy": "Easy", "long": "Long", "workout": "Workout", "race": "Race",
          "cross": "Cross-train", "off": "Off"}
 
@@ -528,7 +528,9 @@ def laps_table(run):
     laps = run["laps"]
     if len(laps) < 2:
         return ""
-    rows = "".join(f'<tr><td>{l["lap"]}</td><td>{l["miles"]}</td><td><b>{l["gap"]}</b></td>'
+    trail = trail_laps().get(run["date"], set())
+    tag = lambda l: ' <span class="trl">trail</span>' if int(l["lap"]) in trail else ""  # notes.md "trail lap N"
+    rows = "".join(f'<tr><td>{l["lap"]}{tag(l)}</td><td>{l["miles"]}</td><td><b>{l["gap"]}</b></td>'
                    f'<td><b>{l["avg_hr"]}</b></td><td>{l["pace"]}</td><td>{l["max_hr"]}</td>'
                    f'<td>+{l["ascent_ft"]}/−{l["descent_ft"]}</td></tr>' for l in laps)
     return (f'<details class="lapd" open><summary>Laps <small>{len(laps)}</small></summary><table class="laps"><thead><tr>'
@@ -758,6 +760,7 @@ button:disabled { opacity: .4; cursor: default; }
 .lapd table.laps { font-size: 14px; width: 100%; max-width: 640px; }
 .lapd .laps th, .lapd .laps td { padding: 5px 12px 5px 0; border-bottom: 1px solid var(--line); }
 .lapd .laps th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.trl { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; margin-left: 4px; }
 .lapd .laps tbody tr:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .act b { color: var(--ink); }
 .trace .thr { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; opacity: .45; }

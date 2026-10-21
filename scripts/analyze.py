@@ -20,7 +20,7 @@ import fitdecode
 import elevation
 from config import (AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CROSS_DEFAULT_RATE, CROSS_FIT_SPORTS, DECOUPLE_MIN_S,
                     EFFORT_DISTANCES, HARD_BOUT, HR_CEIL_PCT, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MANUAL_LOAD_PER_MIN, ROOT,
-                    TZ, ZONES, hard_bout_secs)
+                    TZ, ZONES, hard_bout_secs, trail_laps)
 
 warnings.filterwarnings("ignore", module="fitdecode")  # COROS files trip a harmless size warning
 
@@ -112,16 +112,28 @@ def hard_bout_start(recs):
     return None
 
 
-def aet_pace(recs, ga):
+def lap_records(laps, recs, which):
+    """Record indexes inside the given lap numbers (1-based), matched by cumulative distance as in lap_gaps."""
+    out, start = set(), 0.0
+    for i, l in enumerate(laps, 1):
+        end = start + l["dist"]
+        if i in which:
+            out |= {k for k in range(len(recs)) if recs[k][2] is not None and start <= recs[k][2] < end}
+        start = end
+    return out
+
+
+def aet_pace(recs, ga, skip=frozenset()):
     """Pace (sec/mi) at AeT HR, scaled from grade-adjusted speed / HR; None if too little data.
     Counts seconds after the warm-up, before any hard bout, within the first AET_MAX_S (cardiac drift),
-    in the HR band, running (>= 2 m/s grade-adjusted), on grades under AET_MAX_GRADE averaged over EF_WINDOW s."""
+    in the HR band, running (>= 2 m/s grade-adjusted), on grades under AET_MAX_GRADE averaged over EF_WINDOW s.
+    `skip`: record indexes left out (trail laps)."""
     n = v_sum = hr_sum = 0
     lo, hi = EF_HR_BAND
     end = min(len(recs), AET_MAX_S, hard_bout_start(recs) or len(recs))
     for k in range(max(AET_WARMUP_S, EF_WINDOW), end):
         hr, v = recs[k][0], ga[k][1]
-        if not hr or not lo <= hr <= hi or v < 2.0:
+        if k in skip or not hr or not lo <= hr <= hi or v < 2.0:
             continue
         if abs(sum(g for g, _ in ga[k - EF_WINDOW:k]) / EF_WINDOW) > AET_MAX_GRADE:
             continue
@@ -240,7 +252,7 @@ def lap_hr_pct(laps, recs):
     return out
 
 
-def hr_segments(laps, recs, ga):
+def hr_segments(laps, recs, ga, trail=frozenset()):
     """Steady stretches for the HR-based fitness estimate: per lap, the seconds after HR has settled
     (HRFIT_SETTLE_S into the lap, and after the run's warm-up), before AET_MAX_S (cardiac drift), with HR, running,
     on grades under AET_MAX_GRADE averaged over EF_WINDOW s. A lap counts with at least HRFIT_MIN_S such seconds
@@ -249,6 +261,7 @@ def hr_segments(laps, recs, ga):
     hard-bout HR or above) count, since HR stays raised on the easy laps that follow (jogs, cool-down).
     Consecutive laps within HRFIT_MAX_CV of each other's grade-adjusted speed are joined first, so short auto-laps
     on an easy run make one block while a rep and its jog stay apart.
+    Trail laps (notes.md "trail lap N") are left out, and laps on either side of one aren't joined.
     Laps are matched to records by cumulative distance, as in lap_gaps. Returns [(first lap, secs, gap m/s, mean HR)]."""
     hb = hard_bout_start(recs)
     lap_ks, start = [], 0.0
@@ -259,6 +272,9 @@ def hr_segments(laps, recs, ga):
         lap_ks.append((ks, sum(ga[k][1] for k in ks) / len(ks) if ks else 0))
     blocks = []  # (first lap number, records)
     for i, (ks, v) in enumerate(lap_ks, 1):
+        if i in trail:
+            blocks.append((i, [], None))  # breaks the join; empty, so it never counts
+            continue
         if not ks:
             continue
         if blocks and blocks[-1][2] and abs(v - blocks[-1][2]) <= HRFIT_MAX_CV * blocks[-1][2]:
@@ -377,7 +393,8 @@ def main():
         for m, secs, gap, drop, ahr, mhr in best_efforts(recs, ga, prof):
             effort_rows.append([d, local.strftime("%H:%M"), m, secs, gap,
                                 drop if drop == "" else round(drop * FT_PER_M), ahr, mhr])
-        for lap, secs, v, h in hr_segments(laps, recs, ga):
+        trail = trail_laps().get(d.isoformat(), set())
+        for lap, secs, v, h in hr_segments(laps, recs, ga, trail):
             seg_rows.append([d, local.strftime("%H:%M"), lap, secs, v, h])
         raw, adj = gap_ratio(recs, ga)
         counts = {}
@@ -395,7 +412,7 @@ def main():
                          pace(s["time"], s["dist"]), round(sum(hr) / n) if hr else "", len(laps),
                          *[f"{z:.0f}" for z in zpct],
                          round(s["ascent"] * FT_PER_M), len(hr), round(run_load(zs)),
-                         *(lambda p, n: (round(p) if p else "", n))(*aet_pace(recs, ga)), elev_avg,
+                         *(lambda p, n: (round(p) if p else "", n))(*aet_pace(recs, ga, lap_records(laps, recs, trail))), elev_avg,
                          *decoupling(recs, ga), round(s["time"] * raw[-1] / adj[-1]) if adj[-1] > 0 else "", fid])
 
     # The CSVs are the permanent record. Keep a run's old rows when the FIT file they came from

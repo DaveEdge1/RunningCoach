@@ -11,3 +11,4 @@ so trail runs stay off the pace-at-AeT chart and out of the HR-based fitness est
 - 2026-09-19: trail, single track
 - 2026-10-04: trail
 - 2026-10-18: trail
+- 2026-10-21: trail lap 2; skipped the hill sprints

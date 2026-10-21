@@ -111,17 +111,34 @@ def _race(r):
             "notes": r["course_notes"], "goal_secs": goal, "goal_from": "time" if gt else "pace" if gp else None}
 
 
-def trail_days():
-    """Dates (ISO strings) whose line in notes.md mentions "trail"."""
+def _trail_marks():
+    """{date (ISO): None for a whole trail run, or the set of trail lap numbers} from notes.md lines that
+    mention "trail"; "trail lap 2" or "trail laps 2-3" marks only those laps."""
     path = ROOT / "notes.md"
     if not path.exists():
-        return set()
-    out = set()
+        return {}
+    out = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         m = re.match(r"-\s*(\d{4}-\d{2}-\d{2})(?:\s+\d{1,2}:\d{2})?\s*:(.*)", line.strip())
-        if m and re.search(r"\btrail\b", m.group(2), re.I):
-            out.add(m.group(1))
+        if not m or not re.search(r"\btrail\b", m.group(2), re.I):
+            continue
+        laps = re.search(r"\blaps?\s+(\d+)(?:\s*[-–]\s*(\d+))?", m.group(2), re.I)
+        if laps:
+            a = int(laps.group(1))
+            out[m.group(1)] = set(range(a, int(laps.group(2) or a) + 1))
+        else:
+            out[m.group(1)] = None
     return out
+
+
+def trail_days():
+    """Dates (ISO strings) of whole trail runs in notes.md (lap-level marks are in trail_laps)."""
+    return {d for d, laps in _trail_marks().items() if laps is None}
+
+
+def trail_laps():
+    """{date (ISO): set of lap numbers} for runs with only some laps on trail."""
+    return {d: laps for d, laps in _trail_marks().items() if laps}
 
 
 def load_races():
