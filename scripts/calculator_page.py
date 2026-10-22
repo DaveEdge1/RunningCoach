@@ -89,6 +89,15 @@ button.add { padding: 5px 12px; color: var(--ink); background: var(--card); marg
   .race .x { grid-row: 1; grid-column: 4; } .race .use { grid-row: 1; }
 }
 [hidden] { display: none !important; }
+.basis ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.basis li { display: grid; grid-template-columns: minmax(0, 1fr) 90px 44px; gap: 8px; align-items: center; padding: 5px 0;
+  border-top: 1px solid var(--line); font-size: 14px; font-variant-numeric: tabular-nums; }
+.basis li:first-child { border-top: none; }
+.basis .d { color: var(--muted); font-size: 12px; }
+.basis .wb { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.basis .wb i { display: block; height: 100%; background: var(--s1); }
+.basis .wp { text-align: right; font-weight: 600; }
+.basis .off { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 0 0 14px; }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
 .tl { font-size: 12px; color: var(--muted); }
@@ -141,6 +150,8 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 </div>
 <p class="err" id="err" hidden></p>
 </section>
+
+<section class="card basis" id="basisC"><h2 id="basisH">Predicted from</h2><ul id="basis"></ul><p class="off" id="basisOff"></p></section>
 
 <div class="tiles" id="tiles"></div>
 
@@ -304,13 +315,13 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
   // ---------- inputs -> estimates ----------
   // An estimate predicts distance b at the target elevation: per altitude method, {c, lo, hi} (s) plus the plain VDOT time.
   function readInputs() {
-    var err = [], out = { races: [], lt2: null, lt1: null };
+    var err = [], out = { races: [], lt2: null, lt1: null, off: 0 };
     document.querySelectorAll("input").forEach(function (x) { x.classList.remove("bad"); });
     function bad(el, msg) { el.classList.add("bad"); if (err.indexOf(msg) < 0) err.push(msg); }
     document.querySelectorAll(".race").forEach(function (row) {
       var q = function (c) { return row.querySelector("." + c); };
-      if (!q("use").checked) return;
       var traw = q("t").value.trim(); if (!traw) return;
+      if (!q("use").checked) { out.off++; return; }
       var t = parseClock(traw), m = q("d").value === "c" ? parseFloat(q("c").value) * MI : parseFloat(q("d").value), e = num(q("e"));
       if (!t) return bad(q("t"), "Race times look like 21:30, 2130 or 1:42:05.");
       if (!(m > 0)) return bad(q("c"), "Enter the race distance in miles.");
@@ -350,7 +361,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
     var useModels = b > MARA * 0.97 && I.mi !== null && rs.some(function (r) { return r.m < MARA * 0.97; });
     I.races.forEach(function (r) {
       if (useModels && r.m < MARA * 0.97) return;  // the marathon models stand in for these
-      est.push({ name: dname(r.m) + (r.date ? " · " + r.date : ""), per: fromRace(r.m, r.t, r.e, tg, b) });
+      est.push({ name: dname(r.m) + (r.date ? " · " + r.date : ""), detail: hms(r.t) + " at " + ft(r.e), per: fromRace(r.m, r.t, r.e, tg, b) });
     });
     if (useModels) {
       var short = rs.filter(function (r) { return r.m < MARA * 0.97; });
@@ -358,6 +369,8 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
       var q = two ? D.err["all|model2|mara"] : D.err["all|model1|mara"], s = spread(q);
       est.push({ name: two ? "Marathon model 2: " + dname(two.m) + " + " + dname(short[0].m) + " + " + I.mi + " mi/wk"
                            : "Marathon model 1: " + dname(short[0].m) + " + " + I.mi + " mi/wk",
+        detail: "Vickers & Vertosick: " + (two ? [two, short[0]] : [short[0]]).map(function (r) { return dname(r.m) + " " + hms(r.t); }).join(", ") +
+                ", weekly mileage",
         per: Array.from({ length: NM }, function (_, k) { return k; }).map(function (k) {
           var L = short[0], lt = convert(L.t, L.m, L.e, tg)[k], T;
           if (two) {
@@ -379,11 +392,12 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
       } else {
         per = fromRace(3600 / p * MI, 3600, I.pe, tg, b);
       }
-      est.push({ name: "LT2 " + hms(p) + "/mi", per: per });
+      est.push({ name: "LT2 " + hms(p) + "/mi", detail: ($("lt2def").value === "hrv" ? "as 10–15 km race pace" : "as 1-hour race pace") +
+                " at " + ft(I.pe), per: per });
     }
     if (I.lt1) {
       var qb = miss(10000, b, vo2(10000 / (mean(convert(I.lt1 * 10000 / MI, 10000, I.pe, 0)) / 60)) / 0.72), q10 = spread(qb);
-      est.push({ name: "LT1 " + hms(I.lt1) + "/mi", fallback: true, per: convert(I.lt1 * 10000 / MI, 10000, I.pe, tg).map(function (t10) {
+      est.push({ name: "LT1 " + hms(I.lt1) + "/mi", detail: "Daniels easy-pace inversion at " + ft(I.pe), fallback: true, per: convert(I.lt1 * 10000 / MI, 10000, I.pe, tg).map(function (t10) {
         var o2 = vo2(10000 / (t10 / 60));
         var tc = predict(o2 / 0.72, b), tf = predict(o2 / 0.70, b), ts = predict(o2 / 0.74, b);  // faster, slower ends
         var c = tc * (1 + qb[1] / 100);
@@ -444,7 +458,20 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
       }).join("") + "</tbody>";
 
     var est = estimates(I, F), P = pool(est), fname = dname(F);
-    var used = est.filter(function (e, i) { return P.w[i] > 0; });
+    $("basisH").textContent = "The " + fname + " prediction" + at + " is based on";
+    $("basis").innerHTML = est.map(function (e, i) { return [e, P.w[i]]; }).filter(function (x) { return x[1] > 0; })
+      .sort(function (a, b) { return b[1] - a[1]; }).map(function (x) {
+        var pc = Math.round(100 * x[1]);
+        return '<li><div>' + x[0].name + '<div class="d">' + x[0].detail + '</div></div><div class="wb"><i style="width:' + pc +
+          '%"></i></div><div class="wp">' + pc + "%</div></li>";
+      }).join("");
+    var off = [];
+    est.forEach(function (e, i) { if (!P.w[i]) off.push(e.name + " (shown for comparison: a race or LT2 says more)"); });
+    if (I.mi !== null && !est.some(function (e) { return /^Marathon model/.test(e.name); }))
+      off.push("weekly miles (" + (F > MARA * 0.97 ? "needs a race shorter than the marathon" : "used for the marathon only") + ")");
+    if (I.off) off.push(I.off + " unchecked race" + (I.off > 1 ? "s" : ""));
+    $("basisOff").textContent = off.length ? "Not used: " + off.join(" · ") + "." : "";
+    $("basisOff").hidden = !off.length;
     $("byH").textContent = "What each input says about the " + fname + at;
     $("by").innerHTML = "<thead><tr><th>Input</th><th>Prediction</th><th>80% range</th><th>Weight</th></tr></thead><tbody>" +
       est.map(function (e, i) {
@@ -460,8 +487,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
     $("tiles").innerHTML = [
       [fname + at, hms(P.c), "80% range " + hms(P.lo) + "–" + hms(P.hi) + " · " + hms(P.c / (F / MI)) + "/mi"],
       ["VDOT" + at, V.toFixed(1), "80% range " + Vlo.toFixed(1) + "–" + Vhi.toFixed(1)],
-      ["LT2 pace" + at, hms(lt2) + "/mi", I.lt2 ? "your LT2, converted" : "predicted 12.5 km pace · " + hms(lt2r.lo / (12500 / MI)) + "–" + hms(lt2r.hi / (12500 / MI))],
-      ["Inputs used", String(used.length), used.map(function (e) { return e.name.split(" · ")[0]; }).join(", ")]
+      ["LT2 pace" + at, hms(lt2) + "/mi", I.lt2 ? "your LT2, converted" : "predicted 12.5 km pace · " + hms(lt2r.lo / (12500 / MI)) + "–" + hms(lt2r.hi / (12500 / MI))]
     ].map(function (t) {
       return '<div class="tile"><div class="tl">' + t[0] + '</div><div class="tv">' + t[1] + '</div><div class="ts">' + t[2] + "</div></div>";
     }).join("");
