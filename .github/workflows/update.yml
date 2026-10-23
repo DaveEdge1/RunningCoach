@@ -1,5 +1,5 @@
 # Started every 30 min, 7–11 am Arizona, by a cron-job.org job calling workflow_dispatch
-# (GitHub's own schedule dropped most runs and started the rest hours late). Pulls new runs from intervals.icu, re-analyze, rebuild the site, and commit.
+# (GitHub's own schedule dropped most runs and started the rest hours late). Pulls new runs from intervals.icu, re-analyzes, rebuilds the site, and commits.
 # data/runs.csv and data/laps.csv are the permanent record; FIT files are downloaded
 # fresh on the runner and never committed.
 name: Update
