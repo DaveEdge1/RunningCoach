@@ -57,8 +57,8 @@ If your legs still feel the race by Wednesday, cut Thursday rather than pushing 
 - Mon: 6 easy ✅ 6.3 mi
 - Tue: 1.5 wu · 4 × 7 min threshold (ran by time instead of 1 mi), 90 s jog · 2 cd ✅ 7.4 mi
 - Wed: 6 easy + hill sprints ✅ 6.2 mi (skipped the sprints; lap 2 on trail)
-- Thu: off (changed 2026-10-23; the sprints are dropped this week)
-- Fri: 9 easy (long, moved from Sat) ✅ 8.9 mi
+- Thu: off (changed 2026-10-23)
+- Fri: 9 easy (long, moved from Sat) + hill sprints ✅ 8.9 mi
 - Sat: off (away)
 - Sun: 9 easy, HR < 145 (changed 2026-10-23)
 
