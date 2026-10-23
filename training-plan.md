@@ -28,7 +28,7 @@ Weeks 2–4 build 38 → 41 → 43 (about 2–3 mi a week, all of it easy). Afte
 | Wk | Dates | Run miles | Key sessions | Long |
 |---|---|---|---|---|
 | 1 | Oct 12–18 | 32 | Race recovery: easy only | Sat 9 |
-| 2 | Oct 19–25 | 38 | Tue 4 × 1 mi threshold · Sat–Sun away (miles moved to Thu–Fri) | Fri 10 |
+| 2 | Oct 19–25 | 38 | Tue 4 × 7 min threshold · Thu off · Sat away | Fri 9 · Sun 9 |
 | 3 | Oct 26–Nov 1 | 39.5 | Tue **5K time trial** (current-fitness check; moved up from Nov 3 on 2026-10-21 to space it from the Nov 30 trial) | Sat 11 |
 | 4 | Nov 2–8 | 44.5 | Tue 3 × 1.5 mi threshold (swapped with the time trial) | Fri 12 |
 | 5 | Nov 9–15 | 23 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10): ~4 h down Tanner, 6 h up New Hance, 35-lb pack | Sat 9 |
@@ -54,11 +54,12 @@ Paces come from the most recent race or time trial: the Oct 10 10K until the Oct
 If your legs still feel the race by Wednesday, cut Thursday rather than pushing through.
 
 **Week 2 (Oct 19–25), 38 mi**
-- Mon: 6 easy
+- Mon: 6 easy ✅ 6.3 mi
 - Tue: 1.5 wu · 4 × 7 min threshold (ran by time instead of 1 mi), 90 s jog · 2 cd ✅ 7.4 mi
 - Wed: 6 easy + hill sprints ✅ 6.2 mi (skipped the sprints; lap 2 on trail)
-- Thu: 8 easy + hill sprints (moved from Sun)
-- Fri: 10 easy (long, moved from Sat), HR < 145
-- Sat–Sun: off (away; changed 2026-10-21, so the week's last 18 mi fit Thu–Fri)
+- Thu: off (changed 2026-10-23; the sprints are dropped this week)
+- Fri: 9 easy (long, moved from Sat) ✅ 8.9 mi
+- Sat: off (away)
+- Sun: 9 easy, HR < 145 (changed 2026-10-23)
 
-Two longer days back to back: keep both truly easy (HR < 145). If Thursday leaves your legs heavy, cut Friday to 8 rather than forcing 10. Two days off then set up Tuesday's threshold.
+About 38 mi, as planned. Sunday's 9 comes two days before Tuesday's 5K time trial: keep it truly easy, and cut it to 7 if your legs feel the travel. Monday's 6 easy + strides then sets up the trial.
