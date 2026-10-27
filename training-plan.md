@@ -39,7 +39,7 @@ Weeks 2–4 build 38 → 41 → 43 (about 2–3 mi a week, all of it easy). Afte
 | 10 | Dec 14–20 | 42 | Tue **5 × 1000 m at 7:02, 200 m jog** (repeat of Dec 8) · Thu 3 × 1 mi threshold | Sat 8 (shortened) |
 | 11 | Dec 21–26 | ~16 + race · **taper** | Tue 3 × 1 km at goal effort + 4 × 200 m | **Sat: RACE (5K)** |
 
-Paces come from the most recent race or time trial: the Oct 10 10K until the Nov 3 time trial (Oct 27's was abandoned), then Nov 30, which also checks progress toward the goal. Run both on a track or flat, smooth loop, evenly, with each mile lapped and a pace alert set: 7:20–7:25 for the first mile (Oct 27 went out at 6:52 and fell apart) (the 10K converts to roughly 22:45–23:00 at 7,000 ft), racing the last mile. "Goal" sessions use 21:00 converted to the altitude where they're run. See `plan.csv` (or the calendar) for each day.
+Paces come from the most recent race or time trial: the Oct 10 10K until the Nov 3 time trial (Oct 27's was abandoned), then Nov 30, which also checks progress toward the goal. Run both on a track or flat, smooth loop, with each 400 m lapped (or a pace alert set off the track): the first 800 m at 7:20 (1:49–1:50 per 400), then 7:06–7:10 (1:46–1:47) to 2.5 mi, racing the last 0.6. Oct 27 opened at 5:36–6:08 for the first minute and fell apart; its reps at 6:52 match Daniels Interval pace for VDOT ~47, which predicts 7:02–7:06 for a 5K at 7,000 ft (2026-10-27) (the 10K converts to roughly 22:45–23:00 at 7,000 ft), racing the last mile. "Goal" sessions use 21:00 converted to the altitude where they're run. See `plan.csv` (or the calendar) for each day.
 
 ## This week and next, day by day
 **Week 1 (Oct 12–18), race recovery, 32 mi on 6 days, all easy**
