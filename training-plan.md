@@ -60,6 +60,6 @@ If your legs still feel the race by Wednesday, cut Thursday rather than pushing 
 - Thu: off (changed 2026-10-23)
 - Fri: 9 easy (long, moved from Sat) + hill sprints ✅ 8.9 mi
 - Sat: off (away)
-- Sun: 9 easy, HR < 145 (changed 2026-10-23)
+- Sun: 9 easy, HR < 145 (changed 2026-10-23) ✅ 7.1 mi
 
 About 38 mi, as planned. Sunday's 9 comes two days before Tuesday's 5K time trial: keep it truly easy, and cut it to 7 if your legs feel the travel. Monday's 6 easy + strides then sets up the trial.

@@ -12,3 +12,4 @@ so trail runs stay off the pace-at-AeT chart and out of the HR-based fitness est
 - 2026-10-04: trail
 - 2026-10-18: trail
 - 2026-10-21: trail lap 2; skipped the hill sprints
+- 2026-10-27: 5K time trial abandoned: went out too fast (1.2 mi at 6:52), stopped twice; not a fitness result
