@@ -128,7 +128,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <div class="topbar"><nav class="tabs"><a href="index.html">Calendar</a><a href="fitness.html" aria-current="page">Fitness</a><a href="calculator.html">Calculator</a></nav><div class="racebar"><b>Phoenix 5K</b><span class="rdate"> · Sat Dec 26 · goal 21:00</span> · <span class="cd" data-race="2026-12-26"></span></div><script>(function () { var c = document.querySelector(".racebar .cd"), n = new Date(), t = new Date(n.getFullYear(), n.getMonth(), n.getDate()), r = new Date(c.dataset.race + "T00:00:00"), d = Math.round((r - t) / 864e5); c.textContent = d > 1 ? d + " days" : d === 1 ? "tomorrow" : d === 0 ? "race day" : "done"; })();</script></div>
 <header>
   <h1>Running Fitness</h1>
-  <p class="sub">Built from completed runs only · updated Oct 30, 2026 10:08 MST</p>
+  <p class="sub">Built from completed runs only · updated Oct 30, 2026 10:09 MST</p>
 </header>
 <div class="tgroups"><div class="tgroup"><div class="tgh">Volume</div><div class="tiles"><div class="tile"><div class="tl">Last 7 days</div><div class="tv">31.3 mi</div></div><div class="tile"><div class="tl">28-day average</div><div class="tv">31.9 mi/wk</div><div class=td><span class="up">+3.1</span> vs. previous 28 days</div></div></div></div><div class="tgroup"><div class="tgh">Load</div><div class="tiles"><div class="tile"><div class="tl">Long-term load</div><div class="tv">106</div><div class=td><span class="up">+1</span> vs. 4 weeks ago</div><div class=ts>42-day average</div></div><div class="tile"><div class="tl">Form</div><div class="tv">−1</div><div class=ts>+0% · neutral</div></div><div class="tile"><div class="tl">Load ramp</div><div class="tv">0.93</div><div class=ts>7-day ÷ 28-day · sweet spot</div></div></div></div><div class="tgroup"><div class="tgh">Fitness</div><div class="tiles"><div class="tile"><div class="tl">Pace at AeT (145 bpm)</div><div class="tv">9:05/mi</div><div class=td><span class="up">−30</span> s/mi vs. 4 weeks ago</div><div class=ts>28-day median at 7,000 ft</div></div><div class="tile"><div class="tl">VDOT (sea level)</div><div class="tv">44.6</div><div class=ts>10K, Oct 10, at 7,373 ft</div></div></div></div></div>
 
@@ -188,7 +188,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <section class="card"><h2>Fitness vs. goal</h2>
 <p class="note">Sea-level VDOT over time. The goal (21:00 at 1,100 ft) needs a sea-level VDOT of 47.2. The dotted line is steady progress from current fitness to the goal on race day, the same path the checkpoint uses. Races and time trials are measured results. Between them, each small dot is an <b>HR-based estimate</b> from one run's steady laps at or near AeT (pace and HR together, so it needs no all-out effort; reps and races are left out, since HR lags pace above AeT). The line is their median over 28 days centered on each run (so it stops 14 days short of today) and the band holds the middle half of them, so a run outside the band is day-to-day noise (sleep, fatigue, a few beats of sensor error), not a change in fitness. Estimates are calibrated to 10K (Oct 10) (× 0.988), so they match race results on average; a second race or time trial will firm that up. The dashed line is the trend over the last 56 days: a Theil–Sen line (the median of pairwise slopes, Sen 1968, so one odd run can't tip it) through the estimates, labeled in VDOT per month next to the rate the goal needs. See About for the method.</p>
 <div class="chart" id="cGoal"></div>
-<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span><span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>HR-based estimate (one run)</span><span><span class="ln" style="background:var(--s7)"></span>28-day median</span><span><span class="ln" style="background:repeating-linear-gradient(90deg,var(--s7) 0 6px,transparent 6px 10px)"></span>Trend, last 56 days</span><span><span class="dt" style="background:var(--s7);opacity:.3;border-radius:2px"></span>Middle 50%</span><span><span class="dt" style="background:var(--s2)"></span>Goal race</span><span><span class="ln" style="background:var(--s2)"></span>Goal</span><span><span class="ln dot"></span>On-track path</span></div>
+<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span><span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>HR-based estimate (one run)</span><span><span class="ln" style="background:var(--s7)"></span>28-day median</span><span><span class="ln" style="background:repeating-linear-gradient(90deg,var(--s7) 0 6px,transparent 6px 10px)"></span>Trend, last 56 days (+1.4 VDOT/mo)</span><span><span class="dt" style="background:var(--s7);opacity:.3;border-radius:2px"></span>Middle 50%</span><span><span class="dt" style="background:var(--s2)"></span>Goal race</span><span><span class="ln" style="background:var(--s2)"></span>Goal</span><span><span class="ln dot"></span>On-track path</span></div>
 </section>
 
 <section class="card"><h2>Best efforts</h2>
@@ -223,7 +223,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 <p><b>Workout reps</b> come from laps, so press lap at the start and end of each rep. Grade-adjusted lap pace uses the same Minetti model as pace at AeT.</p>
 <p><b>Altitude</b> is converted two published ways and shown as a range. <a href="https://news.vdoto2.com/2011/03/ask-a-coach-how-do-you-adjust-threshold-pace-at-altitude/">Daniels</a>: paces slow 4–5 s/mi per 1,000 ft above 3,000 ft (15–18 s/mi at 7,000 ft). <a href="https://www.ustfccca.org/assets/ncaa-info/2009-outdoor-alt-adjust.pdf">NCAA 2009 altitude tables</a>: % added by venue altitude (0–7,703 ft) for the mile, 5K and 10K, interpolated by altitude and distance, and held at the nearest of those distances outside that span. Neither accounts for acclimatization.</p>
 </section>
-<footer>Updated Oct 30, 2026 10:08 MST.</footer>
+<footer>Updated Oct 30, 2026 10:09 MST.</footer>
 </main>
 <div id="tip"></div>
 <script>
@@ -574,8 +574,6 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     if (G.slope) {  // Theil-Sen line through the recent estimates
       var S = G.slope, x0 = day(S.d0) + .5, x1 = day(S.d1) + .5, v1 = S.v0 + S.perMo * 12 / 365.25 * (x1 - x0);
       var sl = el("line", { x1: f.X(x0), y1: f.Y(S.v0), x2: f.X(x1), y2: f.Y(v1), stroke: "var(--s7)", "stroke-width": 2, "stroke-dasharray": "6 4" }, f.svg);
-      el("text", { "class": "lbl", x: f.X(x1) + 6, y: f.Y(v1) + 4 }, f.svg).textContent =
-        "Trend " + (S.perMo >= 0 ? "+" : "") + S.perMo.toFixed(1) + " VDOT/mo";
       hover(f, sl, "<b>Trend</b>, last " + S.days + " days<br>" + (S.perMo >= 0 ? "+" : "") + S.perMo.toFixed(2) +
         " VDOT per month (Theil–Sen line through the HR-based estimates)", 2);
     }

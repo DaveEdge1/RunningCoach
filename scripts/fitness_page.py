@@ -1007,7 +1007,8 @@ def build(plan, built):
         '<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span>'
         '<span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>HR-based estimate (one run)</span>'
         f'<span><span class="ln" style="background:var(--s7)"></span>{HRFIT_DAYS}-day median</span>'
-        f'<span><span class="ln" style="background:repeating-linear-gradient(90deg,var(--s7) 0 6px,transparent 6px 10px)"></span>Trend, last {2 * HRFIT_DAYS} days</span>'
+        f'<span><span class="ln" style="background:repeating-linear-gradient(90deg,var(--s7) 0 6px,transparent 6px 10px)"></span>Trend, last {2 * HRFIT_DAYS} days'
+        + (f' ({goal["slope"]["perMo"]:+.1f} VDOT/mo)' if goal["slope"] else '') + '</span>'
         '<span><span class="dt" style="background:var(--s7);opacity:.3;border-radius:2px"></span>Middle 50%</span>'
         '<span><span class="dt" style="background:var(--s2)"></span>Goal race</span>'
         '<span><span class="ln" style="background:var(--s2)"></span>Goal</span>'
@@ -1596,8 +1597,6 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     if (G.slope) {  // Theil-Sen line through the recent estimates
       var S = G.slope, x0 = day(S.d0) + .5, x1 = day(S.d1) + .5, v1 = S.v0 + S.perMo * 12 / 365.25 * (x1 - x0);
       var sl = el("line", { x1: f.X(x0), y1: f.Y(S.v0), x2: f.X(x1), y2: f.Y(v1), stroke: "var(--s7)", "stroke-width": 2, "stroke-dasharray": "6 4" }, f.svg);
-      el("text", { "class": "lbl", x: f.X(x1) + 6, y: f.Y(v1) + 4 }, f.svg).textContent =
-        "Trend " + (S.perMo >= 0 ? "+" : "") + S.perMo.toFixed(1) + " VDOT/mo";
       hover(f, sl, "<b>Trend</b>, last " + S.days + " days<br>" + (S.perMo >= 0 ? "+" : "") + S.perMo.toFixed(2) +
         " VDOT per month (Theil–Sen line through the HR-based estimates)", 2);
     }
