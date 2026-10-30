@@ -10,7 +10,7 @@ from analyze import EF_HR_BAND, EF_MIN_SECS
 from build_site import BASE_CSS, tabs
 from config import (ACUTE_DAYS, ACWR_DANGER, ACWR_SWEET, AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CHRONIC_DAYS,
                     CROSS_DEFAULT_RATE, CROSS_NAMES, DANIELS_FLOOR_FT, DANIELS_SPM, HARD_BOUT,
-                    HRFIT_CAL_RACES, HRFIT_DAYS, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MAX_HR, RACE_WHOLE_RUN_TOL, REST_HR,
+                    HRFIT_CAL_RACES, HRFIT_DAYS, HRFIT_HR_MAX, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MAX_HR, RACE_WHOLE_RUN_TOL, REST_HR,
                     HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, RECOVERY_KM_PER_DAY, REP_MIN_S, REP_PACE_TOL, ROOT,
                     HR_CEIL, HR_CEIL_PCT, THRESH_HR,
                     WORKOUT_Z5_PCT, ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race,
@@ -423,10 +423,12 @@ def hr_vo2max(gap_mps, hr):
 def hr_fitness(runs, rc, meters):
     """HR-based fitness per run from data/segments.csv (steady laps, see analyze.hr_segments), calibrated to races.
 
-    A run's raw estimate is the seconds-weighted mean of hr_vo2max over its steady laps; trail runs are left out.
-    The population HR-VO2 relation doesn't fit any one runner exactly, so every estimate is scaled by the median,
-    over the last HRFIT_CAL_RACES races or time trials with steady laps, of race VDOT (grade-adjusted) / that run's
-    raw estimate, both at the race's own altitude. Each run then goes on the sea-level scale the way a race does:
+    A run's raw estimate is the seconds-weighted mean of hr_vo2max over its steady laps averaging at most
+    HRFIT_HR_MAX (AeT + aet_margin_bpm); trail runs are left out. Above AeT HR and VO2 keep rising for 10-20 minutes (the slow component), so a rep's average HR
+    understates its cost and reads high, and a race's drifts up and reads low. The population HR-VO2 relation doesn't
+    fit any one runner exactly, so every estimate is scaled by k, the median over the last HRFIT_CAL_RACES races or
+    time trials of the factor that puts the median of the runs within HRFIT_DAYS / 2 of the race on its sea-level
+    VDOT (grade-adjusted). Each run goes on the sea-level scale the way a race does:
     VDOT -> time at `meters` at the run's elevation -> sea-level VDOT.
     Returns (points, HRFIT_DAYS median centered on each run, calibration or None)."""
     path = ROOT / "data" / "segments.csv"
@@ -439,7 +441,7 @@ def hr_fitness(runs, rc, meters):
         for s in csv.DictReader(f):
             k = (s["date"], s["start"])
             est = hr_vo2max(float(s["gap_mps"]), float(s["avg_hr"]))
-            if est is not None and s["date"] not in trails and k in info:
+            if est is not None and float(s["avg_hr"]) <= HRFIT_HR_MAX and s["date"] not in trails and k in info:
                 per_run.setdefault(k, []).append((int(s["secs"]), est, float(s["gap_mps"]), float(s["avg_hr"])))
     pts = []
     for (d, start), ss in sorted(per_run.items()):
@@ -448,16 +450,26 @@ def hr_fitness(runs, rc, meters):
         pts.append({"d": date.fromisoformat(d), "start": start, "secs": n, "laps": len(ss),
                     "raw": sum(x[0] * x[1] for x in ss) / n, "elev": int(el) if el else HOME_ELEV_FT,
                     "gap": M_PER_MI / (sum(x[0] * x[2] for x in ss) / n), "hr": sum(x[0] * x[3] for x in ss) / n})
-    by_key = {(p["d"], p["start"]): p for p in pts}
-    cal = [(r, vdot(r["meters"], r["gap"]) / by_key[(r["d"], r["start"])]["raw"])
-           for r in rc if (r["d"], r["start"]) in by_key][-HRFIT_CAL_RACES:]
+    half = timedelta(HRFIT_DAYS / 2)
+    sl_at = lambda p, k: sl_vdot(meters, predict(k * p["raw"], meters), p["elev"])
+
+    def race_k(r):  # bisection: sl_at rises with k
+        win = [p for p in pts if abs(p["d"] - r["d"]) <= half and (p["d"], p["start"]) != (r["d"], r["start"])]
+        if len(win) < 3:
+            return None
+        target, lo, hi = sl_vdot(r["meters"], r["gap"], src_elev(r)), 0.5, 2.0
+        for _ in range(30):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if statistics.median(sl_at(p, mid) for p in win) < target else (lo, mid)
+        return (lo + hi) / 2
+
+    cal = [(r, c) for r in rc if (c := race_k(r)) is not None][-HRFIT_CAL_RACES:]
     k = statistics.median(c for _, c in cal) if cal else 1.0
-    cal_keys = {(r["d"], r["start"]) for r, _ in cal}
     for p in pts:
         p["v"] = k * p["raw"]
-        p["sl"] = sl_vdot(meters, predict(p["v"], meters), p["elev"])
-        p["race"] = (p["d"], p["start"]) in cal_keys
-    trend, half = {}, timedelta(HRFIT_DAYS / 2)
+        p["sl"] = sl_at(p, k)
+        p["race"] = False
+    trend = {}
     for p in pts:  # centered window; only where all of it is in the data, so the line stops half a window short
         if not pts or p["d"] - half < pts[0]["d"] or p["d"] + half > date.today():
             continue
@@ -964,8 +976,8 @@ def build(plan, built):
         f'<p class="note">Sea-level VDOT over time. The goal ({goal["t"]} at {ft(nr["elev"])}) needs a sea-level VDOT of {goal["v"]:.1f}. '
         'The dotted line is steady progress from current fitness to the goal on race day, the same path the checkpoint '
         'uses. Races and time trials are measured results. Between them, each small dot is an <b>HR-based estimate</b> '
-        'from one run\'s steady laps (pace and HR together, so it works on easy days and workouts alike, without an '
-        f'all-out effort). The line is their median over {HRFIT_DAYS} days centered on each run (so it stops {HRFIT_DAYS // 2} days short of today) and the band holds the middle half of them, so a run outside the band is day-to-day noise (sleep, fatigue, a few beats of sensor error), not a change in fitness. '
+        'from one run\'s steady laps at or near AeT (pace and HR together, so it needs no all-out effort; '
+        f'reps and races are left out, since HR lags pace above AeT). The line is their median over {HRFIT_DAYS} days centered on each run (so it stops {HRFIT_DAYS // 2} days short of today) and the band holds the middle half of them, so a run outside the band is day-to-day noise (sleep, fatigue, a few beats of sensor error), not a change in fitness. '
         + (f'Estimates are calibrated to {cal_names} (× {hcal["k"]:.3f}), so they match race results on average; a second race or time trial will firm that up. '
            if hcal else 'No race or time trial with steady laps yet, so estimates are uncalibrated. ')
         + 'See About for the method.</p>\n'
@@ -1020,18 +1032,20 @@ def build(plan, built):
         "and a fastest window can include recoveries. "
         "The next-race estimate uses that current fitness with no projected gains. "
         "Elevation comes from the run's own file.</p>\n"
-        "<p><b>HR-based estimate</b> (Fitness vs. goal) estimates fitness from pace and HR together, so any steady running "
-        "counts. Each steady lap gives an effective VO2max: the oxygen cost of its grade-adjusted pace (Daniels' equation, "
+        "<p><b>HR-based estimate</b> (Fitness vs. goal) estimates fitness from pace and HR together, so any steady easy "
+        "running counts. Each steady lap gives an effective VO2max: the oxygen cost of its grade-adjusted pace (Daniels' equation, "
         "the one inside VDOT) divided by the share of VO2 reserve it used, which Swain &amp; Leutholtz (1997, Med Sci Sports "
         f"Exerc 29:410) found equal to the share of HR reserve (resting {REST_HR}, max {MAX_HR} bpm, from config.json). "
         f"A steady lap leaves out its first {HRFIT_SETTLE_S // 60} minutes (HR still catching up with pace), the run's first "
         f"{AET_WARMUP_S // 60} minutes, everything after {AET_MAX_S // 60} minutes (cardiac drift), grades over "
         f"{AET_MAX_GRADE:.0%}, and laps after a hard bout that aren't hard themselves (HR stays raised on jogs and "
         f"cool-downs). It needs {HRFIT_MIN_S // 60} minutes left and grade-adjusted speed that varies less than "
-        f"{HRFIT_MAX_CV:.0%} (no strides or surges). Trail runs are left out. A population formula doesn't fit one runner "
-        f"exactly, so estimates are scaled to match your last {HRFIT_CAL_RACES} races or time trials (Runalyze calibrates "
-        "its effective VO2max the same way), then converted to sea level like a race. Lap each rep so a workout's reps "
-        "and jogs land in separate laps.</p>\n"
+        f"{HRFIT_MAX_CV:.0%} (no strides or surges). Trail runs are left out, and so is any lap averaging over {HRFIT_HR_MAX} bpm "
+        f"(AeT {AET} plus a little sensor noise): above AeT HR and VO2 keep rising for 10–20 minutes (the slow component; Poole &amp; Jones 2012, "
+        "Compr Physiol 2:933), so a rep's average HR understates its cost and reads high, while a race's drifts up and "
+        "reads low. A population formula doesn't fit one runner exactly, so estimates are scaled so that the median of "
+        f"the runs within {HRFIT_DAYS // 2} days of each of your last {HRFIT_CAL_RACES} races or time trials matches its "
+        "result (Runalyze calibrates its effective VO2max the same way), then converted to sea level like a race.</p>\n"
         f"<p><b>Load ramp</b> is the acute:chronic workload ratio: load over the last {ACUTE_DAYS} days divided by the weekly "
         f"average over the last {CHRONIC_DAYS}. "
         '<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4789704">Gabbett (2016, Br J Sports Med 50:273)</a> calls '

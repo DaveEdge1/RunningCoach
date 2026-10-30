@@ -63,9 +63,17 @@ cost of running at grade-adjusted speed v (the equation inside VDOT) and %HRR = 
 - The %HRmax form (Swain 1994, above) was tried first and rejected: on this athlete's 2026-09/10 data its
   estimate fell 2.1 VDOT per 10 bpm of HR (easy runs read high, hard ones low). The %HRR form with a
   resting HR of 50 (his own figure, 2026-10-16) drifts −0.4 per 10 bpm.
-- A population relation doesn't fit one runner exactly, so estimates are scaled to match race results
-  (median ratio over the last `calibration_races`), as Runalyze does with its effective VO2max
-  correction factor: https://runalyze.com/help/article/vo2max
+- Only laps averaging at most AeT + `aet_margin_bpm` (3) count (changed 2026-10-30; the margin trades a
+  little bias for more runs, since 146–148 bpm laps read ~2 low). Above AeT, VO2 and HR rise for 10–20 min
+  before settling (the slow component), so short stretches aren't at steady state: Poole DC, Jones AM,
+  "Oxygen uptake kinetics", Compr Physiol 2012;2:933–996. On this athlete's Aug–Oct data, against the median
+  of under-AeT runs within 7 days, reps (HR 158+) read +1.9 VDOT, easy laps at 150–158 bpm −5.7, at 145–150
+  −1.9, and under 145 about 0; the Oct 10 10K (175 bpm, drift) read ~1.7 below the easy runs around it.
+- A population relation doesn't fit one runner exactly, so estimates are scaled to match race results,
+  as Runalyze does with its effective VO2max correction factor (https://runalyze.com/help/article/vo2max).
+  Since races run above AeT, a race isn't compared with its own laps: the factor puts the median of the runs
+  within `rolling_days` / 2 of the race on the race's sea-level VDOT (median factor over the last
+  `calibration_races`).
 
 ## Race calculator ranges (race_errors.csv, built by scripts/race_errors.py)
 How far real runners land from VDOT predictions, used by the Calculator tab for its center (VDOT × the median miss)

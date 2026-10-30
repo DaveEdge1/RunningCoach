@@ -62,6 +62,7 @@
   "hr_fitness": {
     "lap_settle_s": 120,
     "min_minutes": 4,
+    "aet_margin_bpm": 3,
     "max_speed_cv_pct": 10,
     "rolling_days": 28,
     "calibration_races": 3

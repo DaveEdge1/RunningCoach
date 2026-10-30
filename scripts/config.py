@@ -63,6 +63,7 @@ def cross_kind(session):
 # HR-based fitness estimate (Daniels' VO2 cost of pace / Swain's %HRmax-to-%VO2max, calibrated to races)
 HRFIT_SETTLE_S = _cfg["hr_fitness"]["lap_settle_s"]
 HRFIT_MIN_S = _cfg["hr_fitness"]["min_minutes"] * 60
+HRFIT_HR_MAX = AET + _cfg["hr_fitness"]["aet_margin_bpm"]
 HRFIT_MAX_CV = _cfg["hr_fitness"]["max_speed_cv_pct"] / 100
 HRFIT_DAYS = _cfg["hr_fitness"]["rolling_days"]
 HRFIT_CAL_RACES = _cfg["hr_fitness"]["calibration_races"]
