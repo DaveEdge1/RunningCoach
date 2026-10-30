@@ -95,7 +95,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 <div class="topbar"><nav class="tabs"><a href="index.html">Calendar</a><a href="fitness.html">Fitness</a><a href="calculator.html">Calculator</a><a href="goals.html" aria-current="page">Goals</a></nav><div class="racebar"><b>Phoenix 5K</b><span class="rdate"> · Sat Dec 26 · goal 21:00</span> · <span class="cd" data-race="2026-12-26"></span></div><script>(function () { var c = document.querySelector(".racebar .cd"), n = new Date(), t = new Date(n.getFullYear(), n.getMonth(), n.getDate()), r = new Date(c.dataset.race + "T00:00:00"), d = Math.round((r - t) / 864e5); c.textContent = d > 1 ? d + " days" : d === 1 ? "tomorrow" : d === 0 ? "race day" : "done"; })();</script></div>
 <header>
   <h1>Goals</h1>
-  <p class="sub">Time goals against current fitness, and the year's mileage · updated Oct 30, 2026 11:16 MST</p>
+  <p class="sub">Time goals against current fitness, and the year's mileage · updated Oct 30, 2026 11:30 MST</p>
 </header>
 
 <section class="card">
@@ -111,7 +111,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 <p>Current fitness is the latest race or time trial, as on the Fitness tab. "Now" is what that fitness predicts at the goal's altitude (Daniels' VDOT tables, converted with both altitude methods, so it's a range), slowed by the course's hills where a profile is in data/courses. The bar fills as current VDOT approaches the VDOT the goal needs, from 5 points below it.</p>
 <p>The mileage goal is tracked against an even pace through the year (goal × days so far ÷ days in the year). "Needed" is the weekly average the rest of the year takes; the projections add the planned miles in plan.csv, or the last 28 days' average, to what's done. Mileage counts runs only (hand-made FIT files too), never hikes or skis.</p>
 </section>
-<footer>Updated Oct 30, 2026 11:16 MST.</footer>
+<footer>Updated Oct 30, 2026 11:30 MST.</footer>
 </main>
 <div id="tip"></div>
 <script>
