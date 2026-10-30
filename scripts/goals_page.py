@@ -1,11 +1,12 @@
 """Goals tab (docs/goals.html): fitness gates on the way to a first marathon, and the year's mileage goal.
 
 Built by scripts/build_site.py. The gates (config.json "goals"."gates") are race times on a flat course at sea level;
-each needs a VDOT, and any race or time trial anywhere passes it once its clock time, converted to sea level by the
-least generous of the altitude methods (Daniels at 4 and 5 s/mi per 1,000 ft, the NCAA tables), reaches that VDOT.
-Hills earn no credit. Both are deliberately conservative: David wants a gate passed at altitude to be one he'd
-certainly have passed at sea level. Upcoming races with a goal (races.csv) show what the goal is worth on that scale;
-a course profile in data/courses/<date>.csv (km, elev_m) slows the prediction for its hills (Minetti et al. 2002). The mileage goal ("goals"."annual_miles") is tracked against an even pace through the year.
+any race or time trial anywhere passes it by beating the gate time there: the gate converted to the race's altitude
+by the least generous of the altitude methods (Daniels at 4 and 5 s/mi per 1,000 ft, the NCAA tables), with no
+credit for hills. That's deliberately conservative: David wants a gate passed at altitude to be one he'd certainly
+have passed at sea level. VDOTs shown are the same as the Fitness tab's (clock time, the altitude methods averaged).
+A course profile in data/courses/<date>.csv (km, elev_m) slows an upcoming race's prediction for its hills
+(Minetti et al. 2002). The mileage goal ("goals"."annual_miles") is tracked against an even pace through the year.
 """
 import csv, html, json
 from datetime import date, timedelta
@@ -49,9 +50,15 @@ def time_for(need, meters, elev):
     return (lo + hi) / 2
 
 
-def score(r):
-    """A finished race or time trial on the gate scale: its clock time (no hill credit) at its altitude."""
+def gate_score(r):
+    """A finished race or time trial on the gate scale (passes a gate when it reaches the gate's VDOT): its clock time,
+    no hill credit, at its altitude by the least generous method. Equivalent to beating time_for() there."""
     return gate_vdot(r["meters"], r["secs"], src_elev(r))
+
+
+def race_vdot(r):
+    """The VDOT shown for a race, the same as the Fitness tab's."""
+    return sl_vdot(r["meters"], r["secs"], src_elev(r))
 
 
 def gates(rc):
@@ -62,7 +69,7 @@ def gates(rc):
             o["need"] = vdot(o["m"], o["secs"])
         need = min(o["need"] for o in opts)
         out.append({"name": g["name"], "opts": opts, "need": need,
-                    "passed": next((r for r in rc if score(r) >= need - EPS), None)})
+                    "passed": next((r for r in rc if gate_score(r) >= need - EPS), None)})
     return out
 
 
@@ -87,12 +94,12 @@ def path_html(gs, cur, ml, today):
             r = g["passed"]
             st = f'<span class="pill hit">done</span> {html.escape(r["name"])}, {when(r["d"])}: {hms(r["secs"])}'
         elif cur:
-            gap = g["need"] - cur
-            st = f"{bar(1 - gap / GATE_BAR)} +{gap:.1f} VDOT to go from your latest race ({cur:.1f})"
+            pred = " · ".join(f"{hms(predict(cur, o['m']))} {dist_label(o['m'])}" for o in g["opts"])
+            st = f"{bar(1 - (g['need'] - cur) / GATE_BAR)} your latest race predicts {pred} at sea level"
         else:
             st = "No race yet."
         rows.append(f'<li><div class="step">Gate {i}</div><div><b>Under {opts}</b> '
-                    f'<span class="dim">· VDOT {g["need"]:.1f}</span><div class="st">{st}</div></div></li>')
+                    f'<span class="dim">· on the clock, at sea level</span><div class="st">{st}</div></div></li>')
     miles_done = bool(ml) and ml["total"] >= ml["goal"]
     if ml:
         jan1 = date.fromisoformat(ml["jan1"])
@@ -128,7 +135,7 @@ def equiv_html(gs, today):
     return f'<div class="scroll"><table class="t"><tr><th>Where</th>{head}</tr>{"".join(rows)}</table></div>'
 
 
-def races_html(rc, gs, best, today):
+def races_html(rc, gs, cur, today):
     up = []
     for g in load_races():
         if g["date"] < today or not g["goal_secs"]:
@@ -136,22 +143,22 @@ def races_html(rc, gs, best, today):
         f, gain = course_factor(g["date"])
         f = f or 1.0
         elev = g["elev"] if g["elev"] is not None else HOME_ELEV_FT
-        v = gate_vdot(g["meters"], g["goal_secs"], elev)
-        if best:
-            lo, hi = convert_range(predict(best, g["meters"]), g["meters"], 0, elev)
+        v = sl_vdot(g["meters"], g["goal_secs"], elev)
+        if cur:
+            lo, hi = convert_range(predict(cur, g["meters"]), g["meters"], 0, elev)
             now = f"{hms(lo * f)}–{hms(hi * f)}"
         else:
             now = "–"
         up.append(f"<tr><td><b>{html.escape(g['name'])}</b> <span class=dim>{elev:,} ft{f', ~{gain * 3.281:,.0f} ft of climbing' if gain else ''}"
                   f"</span></td><td>{when(g['date'])}</td><td>{hms(g['goal_secs'])}</td><td>{v:.1f}</td>"
-                  f"<td>{hms(time_for(v, 5000, 0))}</td><td>{now}</td></tr>")
+                  f"<td>{hms(predict(v, 5000))}</td><td>{now}</td></tr>")
     res = []
     for r in reversed(rc):
-        v = score(r)
-        n = sum(1 for g in gs if v >= g["need"] - EPS)
+        v = race_vdot(r)
+        n = sum(1 for g in gs if gate_score(r) >= g["need"] - EPS)
         res.append(f"<tr><td><b>{html.escape(r['name'])}</b> <span class=dim>{src_elev(r):,} ft</span></td>"
                    f"<td>{when(r['d'])}</td><td>{hms(r['secs'])}</td><td>{v:.1f}</td>"
-                   f"<td>{hms(time_for(v, 5000, 0))}</td><td>{f'gate {n}' if n else '–'}</td></tr>")
+                   f"<td>{hms(predict(v, 5000))}</td><td>{f'gate {n}' if n else '–'}</td></tr>")
     out = ""
     if up:
         out += ("<h3>Coming up</h3><div class=scroll><table class=t><tr><th>Race</th><th>Date</th><th>Goal</th>"
@@ -209,15 +216,14 @@ def build(plan, built):
     today = date.today()
     rc = races(runs, plan)
     latest = rc[-1] if rc else None
-    cur = score(latest) if latest else None
-    best = sl_vdot(latest["meters"], latest["secs"], src_elev(latest)) if latest else None  # the Fitness tab's estimate, for predictions
+    cur = race_vdot(latest) if latest else None
     gs = gates(rc)
     ml = mileage(runs, plan, today)
     cur_txt = (f"Your latest race, the {html.escape(latest['name'])} on {latest['d']:%b} {latest['d'].day}, scores a "
                f"sea-level VDOT of <b>{cur:.1f}</b>." if latest else "No race or time trial yet.")
     subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("goals.html"), "DATA": json.dumps({"miles": ml}, separators=(",", ":")),
             "CURRENT": cur_txt, "PATH": path_html(gs, cur, ml, today), "EQUIV": equiv_html(gs, today),
-            "RACES": races_html(rc, gs, best, today), "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}"}
+            "RACES": races_html(rc, gs, cur, today), "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}"}
     page = TEMPLATE
     for k, v in subs.items():
         page = page.replace(f"%%{k}%%", v)
@@ -290,19 +296,19 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 
 <section class="card">
 <h2>The path</h2>
-<p class="note">Any race or time trial, anywhere, can pass a gate, on conservative terms: its clock time gets the smallest of the published altitude credits and no credit for hills. %%CURRENT%%</p>
+<p class="note">Any race or time trial, anywhere, can pass a gate by beating the gate time there (next card). %%CURRENT%%</p>
 %%PATH%%
 </section>
 
 <section class="card">
 <h2>What the gates mean where you race</h2>
-<p class="note">The clock time that passes each gate at each place. Hills earn no credit, so these are the times to beat on any course there.</p>
+<p class="note">The clock time that passes each gate at each place, on purpose conservative: the gate gets the smallest of the published altitude adjustments, and hills earn no credit, so these are the times to beat on any course there.</p>
 %%EQUIV%%
 </section>
 
 <section class="card">
 <h2>Races on the same scale</h2>
-<p class="note">Goals and results on the gate scale, with the 5K at sea level they're worth. "Now" is what your latest race predicts there (both altitude methods, and the course's hills where its profile is known).</p>
+<p class="note">Goals and results as sea-level VDOT (as on the Fitness tab) and the 5K at sea level that VDOT predicts. "Now" is what your latest race predicts there (both altitude methods, and the course's hills where its profile is known). "Passes" uses the gate times above.</p>
 %%RACES%%
 </section>
 
@@ -310,7 +316,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 
 <section class="card about">
 <h2>About</h2>
-<p>Each gate is a time on a flat course at sea level, which sets the VDOT it needs (Daniels; for "or" gates, the easier of the two). A race's score is the VDOT of its clock time converted to sea level by whichever published altitude method gives the least credit (Daniels' 4 or 5 s/mi per 1,000 ft above 3,000 ft, or the NCAA 2009 tables). Hills earn nothing, even though a hilly course is slower. So a gate passed at altitude or on hills is one you'd certainly have passed on a flat course at sea level. That's why scores here can sit a little below the Fitness tab's VDOT, which averages the methods. The bars fill from 10 VDOT points below each gate.</p>
+<p>Each gate is a finish time on a flat course at sea level. Gates are judged conservatively: a race passes when its clock time beats the gate time at its altitude, converted by whichever published method gives the least adjustment (Daniels' 4 or 5 s/mi per 1,000 ft above 3,000 ft, or the NCAA 2009 tables), and hills earn nothing. So a gate passed at altitude or on hills is one you'd certainly have passed on a flat course at sea level. Predictions and VDOTs on this page are the Fitness tab's (clock time, the methods averaged). The bars fill as that VDOT approaches the one the gate time works out to, from 10 points below.</p>
 <p>The mileage goal is tracked against an even pace through the year (goal × days so far ÷ days in the year). "Needed" is the weekly average the rest of the year takes; the projection adds the planned miles in plan.csv, then the last 28 days' average, to what's done. Mileage counts runs only (hand-made FIT files too), never hikes or skis.</p>
 </section>
 <footer>Updated %%BUILT%%.</footer>
