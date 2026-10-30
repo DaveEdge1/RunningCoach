@@ -11,6 +11,10 @@ _The scripts read thresholds from `config.json`. Update both when they change._
 ## Goals
 - **2026-12-26 — 5K in Phoenix** (~1,100 ft, close to sea level). Goal: 21:00 (6:46/mi), set 2026-10-15; it lives in races.csv (goal_time).
   Switched from the 10K (goal was 44:00, set 2026-10-12) on 2026-10-15: the course is a 0.78 mi out-and-back, so the 10K meant 4 laps and 7 turnarounds.
+- **2027-02-06 — RunSedona 5K** (~4,450 ft, rolling: ~290 ft of climbing). Goal: under 21:00 (set 2026-10-30). With altitude and hills that's about a 20:00 at sea level (VDOT ~49.7), as hard as the sub-20 goal.
+- **Sub-20 5K** on a flat course near sea level (VDOT ~49.9) before moving up to longer races (set 2026-10-30).
+- **2,000 miles in 2027** (key goal, set 2026-10-30): ~38.4 mi/wk average including cut-backs and time off. Holding ~45 mi/wk with cut-back weeks gives ~2,150, so it needs consistency, not higher peaks. Don't chase a deficit late in the year (injury pattern below).
+- Later (after sub-20): 10K in 40:00 (VDOT ~51.9, a stretch) and a half in 1:30 (VDOT ~51.0); same fitness level, so treat them as one target.
 
 ## PRs / recent races
 - 2026-10-10: 10K in 47:55 by watch (GPS 9.99 km). Flat dirt road with some rocky sections, ~7,400 ft.

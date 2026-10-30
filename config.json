@@ -70,7 +70,10 @@
   "workouts": {
     "pace_tolerance_s_per_mi": 5,
     "rep_min_secs": 60,
-    "threshold_hr": [160, 167],
+    "threshold_hr": [
+      160,
+      167
+    ],
     "hr_ceiling": 170,
     "hr_ceiling_percentile": 90
   },
@@ -99,5 +102,19 @@
       "hike": 1.0,
       "ski": 2.5
     }
+  },
+  "goals": {
+    "annual_miles": {
+      "2027": 2000
+    },
+    "times": [
+      {
+        "name": "Sub-20 5K",
+        "distance_km": 5,
+        "time": "19:59",
+        "elevation_ft": 0,
+        "note": "flat course near sea level"
+      }
+    ]
   }
 }

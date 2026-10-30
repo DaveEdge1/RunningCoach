@@ -1,3 +1,4 @@
 date,name,location,distance_km,elevation_ft,course_notes,goal_time,goal_pace
 2026-10-10,10K,Flagstaff area,10,7400,"Flat dirt road, mostly smooth with some rocky sections",,
 2026-12-26,Phoenix 5K,"Phoenix, AZ",5,1100,"Out-and-back, 0.78 mi each way (2 laps, 3 turnarounds)",21:00,
+2027-02-06,RunSedona 5K,"Sedona, AZ",5,4450,"Rolling road course, 1,332–1,390 m: down to a low at 1 km, up ~58 m to the high point at 2.6 km, back down to 4.3 km, up to the finish near the start; ~90 m (~290 ft) of climbing (profile in data/courses/2027-02-06.csv)",20:59,
