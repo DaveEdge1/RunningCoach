@@ -480,6 +480,22 @@ def hr_fitness(runs, rc, meters):
     return pts, list(trend.values()), ({"k": k, "races": [r for r, _ in cal]} if cal else None)
 
 
+DAYS_PER_MO = 365.25 / 12
+
+
+def hr_slope(pts, days):
+    """Theil-Sen line (Sen 1968: median of pairwise slopes, so one odd run can't tip it) through the sea-level
+    HR-based estimates of the last `days` days: (first day, last day, value at first day, VDOT per day), or None."""
+    end = date.today()
+    win = [(p["d"], p["sl"]) for p in pts if (end - p["d"]).days <= days]
+    pairs = [(v2 - v1) / (d2 - d1).days for i, (d1, v1) in enumerate(win) for d2, v2 in win[i + 1:] if d2 != d1]
+    if len(win) < 4 or not pairs:
+        return None
+    m = statistics.median(pairs)
+    d0 = win[0][0]
+    return d0, win[-1][0], statistics.median(v - m * (d - d0).days for d, v in win), m
+
+
 
 REP_RE = re.compile(r"(\d+)\s*[×x]\s*(\d+(?:\.\d+)?)\s*(km|mi|min|k|m)\b", re.I)
 
@@ -966,6 +982,9 @@ def build(plan, built):
                 "hrTrend": [{"d": t["d"].isoformat(), "v": round(t["v"], 2), "q1": round(t["q1"], 2), "q3": round(t["q3"], 2),
                              "n": t["n"]} for t in htrend],
                 "hrDays": HRFIT_DAYS,
+                "slope": {"d0": sl_[0].isoformat(), "d1": sl_[1].isoformat(), "v0": round(sl_[2], 2),
+                          "perMo": round(sl_[3] * DAYS_PER_MO, 2), "days": 2 * HRFIT_DAYS}
+                if (sl_ := hr_slope(hpts, 2 * HRFIT_DAYS)) else None,
                 "basis": {"d": best["d"].isoformat(), "v": round(sl_vdot(best["meters"], best["secs"], src_elev(best)), 2)}
                 if best else None}
         tt = next_time_trial(plan, today, nr["date"])
@@ -980,11 +999,15 @@ def build(plan, built):
         f'reps and races are left out, since HR lags pace above AeT). The line is their median over {HRFIT_DAYS} days centered on each run (so it stops {HRFIT_DAYS // 2} days short of today) and the band holds the middle half of them, so a run outside the band is day-to-day noise (sleep, fatigue, a few beats of sensor error), not a change in fitness. '
         + (f'Estimates are calibrated to {cal_names} (× {hcal["k"]:.3f}), so they match race results on average; a second race or time trial will firm that up. '
            if hcal else 'No race or time trial with steady laps yet, so estimates are uncalibrated. ')
-        + 'See About for the method.</p>\n'
+        + f'The dashed line is the trend over the last {2 * HRFIT_DAYS} days: a Theil–Sen line (the median of pairwise slopes, '
+        'Sen 1968, so one odd run can\'t tip it) through the estimates, labeled in VDOT per month next to the rate the '
+        'goal needs. '
+        'See About for the method.</p>\n'
         '<div class="chart" id="cGoal"></div>\n'
         '<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span>'
         '<span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>HR-based estimate (one run)</span>'
         f'<span><span class="ln" style="background:var(--s7)"></span>{HRFIT_DAYS}-day median</span>'
+        f'<span><span class="ln" style="background:repeating-linear-gradient(90deg,var(--s7) 0 6px,transparent 6px 10px)"></span>Trend, last {2 * HRFIT_DAYS} days</span>'
         '<span><span class="dt" style="background:var(--s7);opacity:.3;border-radius:2px"></span>Middle 50%</span>'
         '<span><span class="dt" style="background:var(--s2)"></span>Goal race</span>'
         '<span><span class="ln" style="background:var(--s2)"></span>Goal</span>'
@@ -1552,8 +1575,10 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     el("line", { x1: f.m.l, x2: f.W - f.m.r, y1: f.Y(G.v), y2: f.Y(G.v), stroke: "var(--s2)", "stroke-width": 2 }, f.svg);
     el("text", { "class": "lbl", x: f.m.l + 6, y: f.Y(G.v) - 6 }, f.svg).textContent = "Goal " + G.t + " · " + G.v.toFixed(1);
     if (G.basis) {
-      var bx = day(G.basis.d) + .5, rx = day(G.race) + .5;
+      var bx = day(G.basis.d) + .5, rx = day(G.race) + .5, need = (G.v - G.basis.v) / (rx - bx) * 365.25 / 12;
       el("line", { x1: f.X(bx), y1: f.Y(G.basis.v), x2: f.X(rx), y2: f.Y(G.v), stroke: "var(--s2)", "stroke-width": 2, "stroke-dasharray": "2 4", "stroke-linecap": "round" }, f.svg);
+      el("text", { "class": "lbl", x: f.X(rx) - 10, y: f.Y(G.v) - 22, "text-anchor": "end" }, f.svg).textContent =
+        "Needed " + (need >= 0 ? "+" : "") + need.toFixed(1) + " VDOT/mo";
       if (G.tt) {
         var tx = day(G.tt.d) + .5, tv = G.basis.v + (G.v - G.basis.v) * (tx - bx) / (rx - bx);
         var c = el("circle", { cx: f.X(tx), cy: f.Y(tv), r: 4, fill: "var(--card)", stroke: "var(--s2)", "stroke-width": 2 }, f.svg);
@@ -1568,6 +1593,14 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
     }
     if (G.hrTrend.length > 1)
       el("path", { d: linePath(f, G.hrTrend.map(function (t) { return [day(t.d) + .5, t.v]; })), fill: "none", stroke: "var(--s7)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
+    if (G.slope) {  // Theil-Sen line through the recent estimates
+      var S = G.slope, x0 = day(S.d0) + .5, x1 = day(S.d1) + .5, v1 = S.v0 + S.perMo * 12 / 365.25 * (x1 - x0);
+      var sl = el("line", { x1: f.X(x0), y1: f.Y(S.v0), x2: f.X(x1), y2: f.Y(v1), stroke: "var(--s7)", "stroke-width": 2, "stroke-dasharray": "6 4" }, f.svg);
+      el("text", { "class": "lbl", x: f.X(x1) + 6, y: f.Y(v1) + 4 }, f.svg).textContent =
+        "Trend " + (S.perMo >= 0 ? "+" : "") + S.perMo.toFixed(1) + " VDOT/mo";
+      hover(f, sl, "<b>Trend</b>, last " + S.days + " days<br>" + (S.perMo >= 0 ? "+" : "") + S.perMo.toFixed(2) +
+        " VDOT per month (Theil–Sen line through the HR-based estimates)", 2);
+    }
     var med = {};
     G.hrTrend.forEach(function (t) { med[t.d] = t; });
     G.hr.forEach(function (p) {
