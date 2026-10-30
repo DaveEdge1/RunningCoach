@@ -15,3 +15,6 @@ data/update.log
 data/Strava_export_*/
 # Personal running log (family notes)
 data/Running log - 2024-25.csv
+
+# reference papers
+*.pdf
