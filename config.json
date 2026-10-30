@@ -104,17 +104,33 @@
     }
   },
   "goals": {
+    "gates": [
+      {
+        "name": "Sub-20 5K",
+        "any": [
+          {
+            "distance_km": 5,
+            "time": "19:59"
+          }
+        ]
+      },
+      {
+        "name": "1:30 half or 40:00 10K",
+        "any": [
+          {
+            "distance_km": 21.0975,
+            "time": "1:29:59"
+          },
+          {
+            "distance_km": 10,
+            "time": "39:59"
+          }
+        ]
+      }
+    ],
     "annual_miles": {
       "2027": 2000
     },
-    "times": [
-      {
-        "name": "Sub-20 5K",
-        "distance_km": 5,
-        "time": "19:59",
-        "elevation_ft": 0,
-        "note": "flat course near sea level"
-      }
-    ]
+    "unlocks": "First marathon"
   }
 }

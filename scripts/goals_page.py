@@ -1,25 +1,28 @@
-"""Goals tab (docs/goals.html): time goals against current fitness, and the year's mileage goal.
+"""Goals tab (docs/goals.html): fitness gates on the way to a first marathon, and the year's mileage goal.
 
-Built by scripts/build_site.py. Time goals are the races in races.csv with a goal_time (or goal_pace) plus the
-standalone goals in config.json ("goals"."times"); each is scored as the sea-level VDOT it needs, against the latest
-race or time trial (the same current fitness as the Fitness tab). A race with a course profile in
-data/courses/<date>.csv (km, elev_m) is also adjusted for its hills with Minetti et al. (2002). The mileage goal
-("goals"."annual_miles") is tracked day by day against an even pace through the year.
+Built by scripts/build_site.py. The gates (config.json "goals"."gates") are race times on a flat course at sea level;
+each needs a VDOT, and any race or time trial anywhere passes it once its clock time, converted to sea level by the
+least generous of the altitude methods (Daniels at 4 and 5 s/mi per 1,000 ft, the NCAA tables), reaches that VDOT.
+Hills earn no credit. Both are deliberately conservative: David wants a gate passed at altitude to be one he'd
+certainly have passed at sea level. Upcoming races with a goal (races.csv) show what the goal is worth on that scale;
+a course profile in data/courses/<date>.csv (km, elev_m) slows the prediction for its hills (Minetti et al. 2002). The mileage goal ("goals"."annual_miles") is tracked against an even pace through the year.
 """
-import csv, json
+import csv, html, json
 from datetime import date, timedelta
 
 from analyze import minetti_cost
 from build_site import BASE_CSS, tabs
-from config import ROOT, _cfg, convert_range, load_races, parse_clock
-from fitness_page import M_PER_MI, dist_label, fitness_basis, hms, predict, races, series, sl_vdot, src_elev, vdot
+from config import HOME_ELEV_FT, HOME_NAME, ROOT, _cfg, convert_range, convert_time, load_races, parse_clock
+from fitness_page import dist_label, hms, predict, races, series, sl_vdot, src_elev, vdot
 
 GOALS = _cfg.get("goals", {})
+GATE_BAR = 10  # progress bars fill from this many VDOT points below the gate
+EPS = 0.005  # VDOT rounding slack when checking a gate
 
 
 def course_factor(d):
-    """Energy cost of a race course relative to flat ground (Minetti et al. 2002, as analyze.grade_adjust uses), from
-    data/courses/<date>.csv; None without a profile."""
+    """Energy cost of a race course relative to flat ground (Minetti et al. 2002, as analyze.grade_adjust uses), and
+    its climbing in m, from data/courses/<date>.csv; (None, None) without a profile."""
     path = ROOT / "data" / "courses" / f"{d.isoformat()}.csv"
     if not path.exists():
         return None, None
@@ -32,37 +35,132 @@ def course_factor(d):
     return cost / (pts[-1][0] - pts[0][0]), gain
 
 
-def time_goals(rc, today):
-    """One row per goal: what it needs (sea-level VDOT) and what current fitness predicts there."""
-    basis = fitness_basis(rc)
-    cur = sl_vdot(basis["meters"], basis["secs"], src_elev(basis)) if basis else None
-    done = {r["d"]: r for r in rc}
+def gate_vdot(meters, secs, elev):
+    """Sea-level VDOT of a clock time at `elev`, by the altitude method that gives the least credit."""
+    return min(vdot(meters, t) for t in convert_time(secs, meters, elev, 0).values())
+
+
+def time_for(need, meters, elev):
+    """Clock time at `elev` that scores `need` on the gate scale."""
+    lo, hi = 60.0, 36000.0
+    for _ in range(50):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if gate_vdot(meters, mid, elev) > need else (lo, mid)
+    return (lo + hi) / 2
+
+
+def score(r):
+    """A finished race or time trial on the gate scale: its clock time (no hill credit) at its altitude."""
+    return gate_vdot(r["meters"], r["secs"], src_elev(r))
+
+
+def gates(rc):
+    out = []
+    for g in GOALS.get("gates", []):
+        opts = [{"m": o["distance_km"] * 1000, "secs": parse_clock(o["time"])} for o in g["any"]]
+        for o in opts:
+            o["need"] = vdot(o["m"], o["secs"])
+        need = min(o["need"] for o in opts)
+        out.append({"name": g["name"], "opts": opts, "need": need,
+                    "passed": next((r for r in rc if score(r) >= need - EPS), None)})
+    return out
+
+
+def under(secs):
+    """The round time a goal like 19:59 or 1:29:59 is 'under'."""
+    return hms(secs + 1).removesuffix(":00") if secs + 1 >= 3600 else hms(secs + 1)
+
+
+def bar(frac):
+    return f'<span class="gbar"><i style="width:{max(0, min(1, frac)) * 100:.0f}%"></i></span>'
+
+
+def when(d):
+    return f"{d:%b} {d.day}, {d.year}"
+
+
+def path_html(gs, cur, ml, today):
     rows = []
-    goals = [dict(r, kind="race") for r in load_races() if r["goal_secs"]]
-    goals += [{"date": None, "name": g["name"], "location": g.get("note", ""), "meters": g["distance_km"] * 1000,
-               "elev": g.get("elevation_ft", 0), "goal_secs": parse_clock(g["time"]), "kind": "goal"}
-              for g in GOALS.get("times", [])]
-    for g in goals:
-        if g["date"] and g["date"] < today and g["date"] not in done:
-            continue  # a past race with no recorded result
-        elev = g["elev"] if g["elev"] is not None else 0
-        factor, gain = course_factor(g["date"]) if g["date"] else (None, None)
-        flat = g["goal_secs"] / (factor or 1)  # the goal as a flat-course time at that altitude
-        need = sl_vdot(g["meters"], flat, elev)
-        row = {"name": g["name"], "date": g["date"].isoformat() if g["date"] else None, "where": g["location"],
-               "dist": dist_label(g["meters"]), "elev": elev, "goal": hms(g["goal_secs"]), "need": round(need, 1),
-               "hills": f"+{(factor - 1) * 100:.1f}% for ~{gain * 3.281:,.0f} ft of climbing" if factor else None}
-        r = done.get(g["date"]) if g["date"] else None
-        if r:
-            row["result"] = hms(r["secs"])
-            row["hit"] = r["secs"] <= g["goal_secs"] + 0.5
+    for i, g in enumerate(gs, 1):
+        opts = " or ".join(f"{under(o['secs'])} {dist_label(o['m'])}" for o in g["opts"])
+        if g["passed"]:
+            r = g["passed"]
+            st = f'<span class="pill hit">done</span> {html.escape(r["name"])}, {when(r["d"])}: {hms(r["secs"])}'
         elif cur:
-            lo, hi = convert_range(predict(cur, g["meters"]), g["meters"], 0, elev)
-            row["now"] = [hms(lo * (factor or 1)), hms(hi * (factor or 1))]
-            row["gap"] = round(need - cur, 1)
-        rows.append(row)
-    rows.sort(key=lambda x: (x["date"] is None, x["date"] or ""))
-    return rows, cur, basis
+            gap = g["need"] - cur
+            st = f"{bar(1 - gap / GATE_BAR)} +{gap:.1f} VDOT to go from your latest race ({cur:.1f})"
+        else:
+            st = "No race yet."
+        rows.append(f'<li><div class="step">Gate {i}</div><div><b>Under {opts}</b> '
+                    f'<span class="dim">· VDOT {g["need"]:.1f}</span><div class="st">{st}</div></div></li>')
+    miles_done = bool(ml) and ml["total"] >= ml["goal"]
+    if ml:
+        jan1 = date.fromisoformat(ml["jan1"])
+        if miles_done:
+            st = f'<span class="pill hit">done</span> {ml["total"]:,.0f} mi'
+        elif jan1 > today:
+            st = f"Starts {when(jan1)} · {(jan1 - today).days} days"
+        else:
+            st = f'{bar(ml["total"] / ml["goal"])} {ml["total"]:,.0f} of {ml["goal"]:,} mi (details below)'
+        rows.append(f'<li><div class="step">Gate {len(gs) + 1}</div><div><b>{ml["goal"]:,} miles in {ml["year"]}</b> '
+                    f'<span class="dim">· {ml["goal"] * 7 / ((date.fromisoformat(ml["dec31"]) - date.fromisoformat(ml["jan1"])).days + 1):.1f} mi/wk on average</span>'
+                    f'<div class="st">{st}</div></div></li>')
+    unlocked = bool(gs) and gs[-1]["passed"] and miles_done
+    st = '<span class="pill hit">unlocked</span>' if unlocked else "Opens when the last two gates are both done."
+    rows.append(f'<li class="end"><div class="step">Then</div><div><b>{html.escape(GOALS.get("unlocks", "Next goal"))}</b>'
+                f'<div class="st">{st}</div></div></li>')
+    return '<ol class="path">' + "".join(rows) + "</ol>"
+
+
+def equiv_html(gs, today):
+    """Each gate time as it reads at home, at the upcoming race venues and at sea level."""
+    upcoming = [r for r in load_races() if r["date"] >= today]
+    places = {0: "Sea level", HOME_ELEV_FT: HOME_NAME}
+    for r in upcoming:
+        if r["elev"] is not None:
+            places.setdefault(r["elev"], r["location"])
+    opts = [o for g in gs for o in g["opts"]]
+    head = "".join(f"<th>{under(o['secs'])} {dist_label(o['m'])}</th>" for o in opts)
+    rows = []
+    for elev in sorted(places):
+        cells = "".join(f"<td>{hms(time_for(o['need'], o['m'], elev))}</td>" for o in opts)
+        rows.append(f"<tr><td>{html.escape(places[elev])} <span class=dim>{elev:,} ft</span></td>{cells}</tr>")
+    return f'<div class="scroll"><table class="t"><tr><th>Where</th>{head}</tr>{"".join(rows)}</table></div>'
+
+
+def races_html(rc, gs, best, today):
+    up = []
+    for g in load_races():
+        if g["date"] < today or not g["goal_secs"]:
+            continue
+        f, gain = course_factor(g["date"])
+        f = f or 1.0
+        elev = g["elev"] if g["elev"] is not None else HOME_ELEV_FT
+        v = gate_vdot(g["meters"], g["goal_secs"], elev)
+        if best:
+            lo, hi = convert_range(predict(best, g["meters"]), g["meters"], 0, elev)
+            now = f"{hms(lo * f)}–{hms(hi * f)}"
+        else:
+            now = "–"
+        up.append(f"<tr><td><b>{html.escape(g['name'])}</b> <span class=dim>{elev:,} ft{f', ~{gain * 3.281:,.0f} ft of climbing' if gain else ''}"
+                  f"</span></td><td>{when(g['date'])}</td><td>{hms(g['goal_secs'])}</td><td>{v:.1f}</td>"
+                  f"<td>{hms(time_for(v, 5000, 0))}</td><td>{now}</td></tr>")
+    res = []
+    for r in reversed(rc):
+        v = score(r)
+        n = sum(1 for g in gs if v >= g["need"] - EPS)
+        res.append(f"<tr><td><b>{html.escape(r['name'])}</b> <span class=dim>{src_elev(r):,} ft</span></td>"
+                   f"<td>{when(r['d'])}</td><td>{hms(r['secs'])}</td><td>{v:.1f}</td>"
+                   f"<td>{hms(time_for(v, 5000, 0))}</td><td>{f'gate {n}' if n else '–'}</td></tr>")
+    out = ""
+    if up:
+        out += ("<h3>Coming up</h3><div class=scroll><table class=t><tr><th>Race</th><th>Date</th><th>Goal</th>"
+                "<th>Sea-level VDOT</th><th>= 5K at sea level</th><th>Now</th></tr>" + "".join(up) + "</table></div>")
+    if res:
+        out += ("<h3>Results</h3><div class=scroll><table class=t><tr><th>Race</th><th>Date</th><th>Time</th>"
+                "<th>Sea-level VDOT</th><th>= 5K at sea level</th><th>Passes</th></tr>"
+                + "".join(res) + "</table></div>")
+    return out
 
 
 def mileage(runs, plan, today):
@@ -75,7 +173,7 @@ def mileage(runs, plan, today):
     jan1, dec31 = date(year, 1, 1), date(year, 12, 31)
     daily = series(runs, today) if runs else []
     mi = {date.fromisoformat(x["d"]): x["mi"] for x in daily}
-    days, cum, total = [], 0.0, 0.0
+    days, cum = [], 0.0
     d = jan1
     while d <= min(today, dec31):
         cum += mi.get(d, 0.0)
@@ -110,12 +208,16 @@ def build(plan, built):
         runs = list(csv.DictReader(f))
     today = date.today()
     rc = races(runs, plan)
-    rows, cur, basis = time_goals(rc, today)
-    data = {"goals": rows, "miles": mileage(runs, plan, today)}
-    cur_txt = (f"Current fitness: sea-level VDOT <b>{cur:.1f}</b>, from the {basis['name']} on {basis['d']:%b} "
-               f"{basis['d'].day}." if cur else "No race or time trial yet.")
-    subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("goals.html"), "DATA": json.dumps(data, separators=(",", ":")),
-            "CURRENT": cur_txt, "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}"}
+    latest = rc[-1] if rc else None
+    cur = score(latest) if latest else None
+    best = sl_vdot(latest["meters"], latest["secs"], src_elev(latest)) if latest else None  # the Fitness tab's estimate, for predictions
+    gs = gates(rc)
+    ml = mileage(runs, plan, today)
+    cur_txt = (f"Your latest race, the {html.escape(latest['name'])} on {latest['d']:%b} {latest['d'].day}, scores a "
+               f"sea-level VDOT of <b>{cur:.1f}</b>." if latest else "No race or time trial yet.")
+    subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("goals.html"), "DATA": json.dumps({"miles": ml}, separators=(",", ":")),
+            "CURRENT": cur_txt, "PATH": path_html(gs, cur, ml, today), "EQUIV": equiv_html(gs, today),
+            "RACES": races_html(rc, gs, best, today), "BUILT": f"{built:%b} {built.day}, {built:%Y %H:%M %Z}"}
     page = TEMPLATE
     for k, v in subs.items():
         page = page.replace(f"%%{k}%%", v)
@@ -133,8 +235,17 @@ TEMPLATE = """<!doctype html>
 %%BASE_CSS%%
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
 .card h2 { font-size: 16px; margin: 0 0 2px; }
+.card h3 { font-size: 13px; margin: 12px 0 4px; color: var(--muted); font-weight: 600; }
 .note { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
 .note b { color: var(--ink); }
+.dim { color: var(--muted); font-size: 12px; font-weight: 400; }
+.path { list-style: none; margin: 10px 0 0; padding: 0; }
+.path li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid var(--line);
+  font-size: 14px; font-variant-numeric: tabular-nums; }
+.path li:first-child { border-top: none; }
+.path .step { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.path .st { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.path li.end b { color: var(--race); }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin: 10px 0 4px; }
 .tile { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
 .tl { font-size: 12px; color: var(--muted); }
@@ -146,13 +257,11 @@ table.t { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabu
 table.t td, table.t th { padding: 5px 8px; text-align: right; white-space: nowrap; border-top: 1px solid var(--line); }
 table.t td:first-child, table.t th:first-child { text-align: left; padding-left: 0; }
 table.t th { color: var(--muted); font-weight: 500; border-top: none; }
-table.t .sub { display: block; color: var(--muted); font-size: 11px; white-space: normal; max-width: 260px; }
 .gbar { position: relative; display: inline-block; width: 110px; height: 8px; border-radius: 4px; background: var(--line);
-  vertical-align: 0; overflow: hidden; }
+  vertical-align: 0; overflow: hidden; margin-right: 4px; }
 .gbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--s1); border-radius: 4px; }
-.pill { display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 12px; font-weight: 600; }
+.pill { display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 12px; font-weight: 600; margin-right: 4px; }
 .pill.hit { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
-.pill.miss { background: color-mix(in srgb, var(--tired) 18%, transparent); color: var(--tired); }
 .chart { position: relative; height: 280px; margin-top: 8px; touch-action: pan-y; }
 .chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .grid line { stroke: var(--line); stroke-width: 1; }
@@ -176,21 +285,33 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 %%TABS%%
 <header>
   <h1>Goals</h1>
-  <p class="sub">Time goals against current fitness, and the year's mileage · updated %%BUILT%%</p>
+  <p class="sub">Fitness gates on the way to a first marathon · updated %%BUILT%%</p>
 </header>
 
 <section class="card">
-<h2>Time goals</h2>
-<p class="note">%%CURRENT%% Each goal is converted to the sea-level VDOT it needs (altitude by Daniels and the NCAA tables, and hills by Minetti et al. 2002 where the course profile is known), so goals at different altitudes compare on one scale.</p>
-<div class="scroll"><table class="t" id="goals"></table></div>
+<h2>The path</h2>
+<p class="note">Any race or time trial, anywhere, can pass a gate, on conservative terms: its clock time gets the smallest of the published altitude credits and no credit for hills. %%CURRENT%%</p>
+%%PATH%%
+</section>
+
+<section class="card">
+<h2>What the gates mean where you race</h2>
+<p class="note">The clock time that passes each gate at each place. Hills earn no credit, so these are the times to beat on any course there.</p>
+%%EQUIV%%
+</section>
+
+<section class="card">
+<h2>Races on the same scale</h2>
+<p class="note">Goals and results on the gate scale, with the 5K at sea level they're worth. "Now" is what your latest race predicts there (both altitude methods, and the course's hills where its profile is known).</p>
+%%RACES%%
 </section>
 
 <section class="card" id="mi"></section>
 
 <section class="card about">
 <h2>About</h2>
-<p>Current fitness is the latest race or time trial, as on the Fitness tab. "Now" is what that fitness predicts at the goal's altitude (Daniels' VDOT tables, converted with both altitude methods, so it's a range), slowed by the course's hills where a profile is in data/courses. The bar fills as current VDOT approaches the VDOT the goal needs, from 5 points below it.</p>
-<p>The mileage goal is tracked against an even pace through the year (goal × days so far ÷ days in the year). "Needed" is the weekly average the rest of the year takes; the projections add the planned miles in plan.csv, or the last 28 days' average, to what's done. Mileage counts runs only (hand-made FIT files too), never hikes or skis.</p>
+<p>Each gate is a time on a flat course at sea level, which sets the VDOT it needs (Daniels; for "or" gates, the easier of the two). A race's score is the VDOT of its clock time converted to sea level by whichever published altitude method gives the least credit (Daniels' 4 or 5 s/mi per 1,000 ft above 3,000 ft, or the NCAA 2009 tables). Hills earn nothing, even though a hilly course is slower. So a gate passed at altitude or on hills is one you'd certainly have passed on a flat course at sea level. That's why scores here can sit a little below the Fitness tab's VDOT, which averages the methods. The bars fill from 10 VDOT points below each gate.</p>
+<p>The mileage goal is tracked against an even pace through the year (goal × days so far ÷ days in the year). "Needed" is the weekly average the rest of the year takes; the projection adds the planned miles in plan.csv, then the last 28 days' average, to what's done. Mileage counts runs only (hand-made FIT files too), never hikes or skis.</p>
 </section>
 <footer>Updated %%BUILT%%.</footer>
 </main>
@@ -214,26 +335,6 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
   }
   function sw(v) { return '<i style="background:var(' + v + ')"></i>'; }
 
-  // ---- time goals ----
-  var t = document.getElementById("goals");
-  var h = "<tr><th>Goal</th><th>Date</th><th>Elevation</th><th>Goal time</th><th>VDOT needed</th><th>Now</th><th>Progress</th></tr>";
-  D.goals.forEach(function (g) {
-    var sub = [g.dist + (g.where ? " · " + g.where : "")];
-    if (g.hills) sub.push("hills " + g.hills);
-    var now, prog;
-    if (g.result) {
-      now = g.result; prog = '<span class="pill ' + (g.hit ? "hit" : "miss") + '">' + (g.hit ? "done" : "missed") + "</span>";
-    } else if (g.now) {
-      now = g.now[0] === g.now[1] ? g.now[0] : g.now[0] + "–" + g.now[1];
-      var f = Math.max(0, Math.min(1, 1 - g.gap / 5));
-      prog = '<span class="gbar"><i style="width:' + (f * 100).toFixed(0) + '%"></i></span> ' +
-             (g.gap > 0 ? "+" + g.gap.toFixed(1) + " to go" : '<span class="up">there</span>');
-    } else { now = "–"; prog = ""; }
-    h += "<tr><td><b>" + g.name + "</b><span class=sub>" + sub.join(" · ") + "</span></td><td>" + (g.date ? fmtLong(g.date) : "–") +
-         "</td><td>" + n0(g.elev) + " ft</td><td>" + g.goal + "</td><td>" + g.need.toFixed(1) + "</td><td>" + now + "</td><td>" + prog + "</td></tr>";
-  });
-  t.innerHTML = h;
-
   // ---- mileage goal ----
   var M = D.miles, box = document.getElementById("mi");
   if (!M) { box.hidden = true; return; }
@@ -249,13 +350,14 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
     ? tile(M.year + " so far", n0(M.total) + " mi", n0(M.total / M.goal * 100) + "% of " + n0(M.goal)) +
       tile("vs. even pace", '<span class="' + (diff >= 0 ? "up" : "down") + '">' + (diff >= 0 ? "+" : "−") + n0(Math.abs(diff)) + " mi</span>",
            (diff >= 0 ? "ahead of " : "behind ") + n0(target) + " by today") +
-      tile("Needed", (need).toFixed(1) + " mi/wk", "average for the " + Math.round(left / 7) + " weeks left")
+      tile("Needed", need.toFixed(1) + " mi/wk", "average for the " + Math.round(left / 7) + " weeks left")
     : tile("Starts", fmtLong(M.jan1), Math.round(x0 - td) + " days away") +
       tile("Needed", (M.goal / (nDays / 7)).toFixed(1) + " mi/wk", "average, every week of " + M.year);
-  if (M.r28 != null) tiles += tile("Last 28 days", M.r28.toFixed(1) + " mi/wk", (M.r28 >= need || !started && M.r28 * nDays / 7 >= M.goal ? "on pace" : "below") + " the goal pace");
+  var pace = started ? need : M.goal / (nDays / 7);
+  if (M.r28 != null) tiles += tile("Last 28 days", M.r28.toFixed(1) + " mi/wk", (M.r28 >= pace ? "at or above" : "below") + " the needed pace");
   if (proj != null) tiles += tile("Projected", n0(proj) + " mi", (M.plan.length ? "plan, then " : "") + "28-day average to Dec 31");
   box.innerHTML = "<h2>" + n0(M.goal) + " miles in " + M.year + "</h2>" +
-    '<p class="note">' + n0(M.goal) + " miles is " + (M.goal / (nDays / 7)).toFixed(1) + " mi a week on average, cut-back weeks, tapers, trips and time off included." + "</p>" +
+    '<p class="note">' + n0(M.goal) + " miles is " + (M.goal / (nDays / 7)).toFixed(1) + " mi a week on average, cut-back weeks, tapers, trips and time off included.</p>" +
     '<div class="tiles">' + tiles + "</div>" +
     '<div class="chart" id="cum"></div>' +
     '<div class="legend note"><span><i class="ln" style="background:var(--s1)"></i>Miles run</span> &nbsp; <span><i class="ln dash"></i>Even pace to ' + n0(M.goal) +
