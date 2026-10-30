@@ -424,13 +424,14 @@ def hr_fitness(runs, rc, meters):
     """HR-based fitness per run from data/segments.csv (steady laps, see analyze.hr_segments), calibrated to races.
 
     A run's raw estimate is the seconds-weighted mean of hr_vo2max over its steady laps averaging at most
-    HRFIT_HR_MAX (AeT + aet_margin_bpm); trail runs are left out. Above AeT HR and VO2 keep rising for 10-20 minutes (the slow component), so a rep's average HR
-    understates its cost and reads high, and a race's drifts up and reads low. The population HR-VO2 relation doesn't
+    HRFIT_HR_MAX (AeT + aet_margin_bpm); trail runs are left out. Above AeT HR and VO2 keep rising for 10-20 minutes
+    (the slow component), so a rep's average HR understates its cost and reads high, and a race's drifts up and
+    reads low. The population HR-VO2 relation doesn't
     fit any one runner exactly, so every estimate is scaled by k, the median over the last HRFIT_CAL_RACES races or
     time trials of the factor that puts the median of the runs within HRFIT_DAYS / 2 of the race on its sea-level
     VDOT (grade-adjusted). Each run goes on the sea-level scale the way a race does:
     VDOT -> time at `meters` at the run's elevation -> sea-level VDOT.
-    Returns (points, HRFIT_DAYS median centered on each run, calibration or None)."""
+    Returns (points, calibration or None)."""
     path = ROOT / "data" / "segments.csv"
     if not path.exists():
         return [], [], None
@@ -469,15 +470,7 @@ def hr_fitness(runs, rc, meters):
         p["v"] = k * p["raw"]
         p["sl"] = sl_at(p, k)
         p["race"] = False
-    trend = {}
-    for p in pts:  # centered window; only where all of it is in the data, so the line stops half a window short
-        if not pts or p["d"] - half < pts[0]["d"] or p["d"] + half > date.today():
-            continue
-        win = [q["sl"] for q in pts if p["d"] - half <= q["d"] <= p["d"] + half]
-        if len(win) >= 3:
-            q1, med, q3 = statistics.quantiles(win, n=4, method="inclusive")
-            trend[p["d"]] = {"d": p["d"], "v": med, "q1": q1, "q3": q3, "n": len(win)}
-    return pts, list(trend.values()), ({"k": k, "races": [r for r, _ in cal]} if cal else None)
+    return pts, ({"k": k, "races": [r for r, _ in cal]} if cal else None)
 
 
 DAYS_PER_MO = 365.25 / 12
@@ -971,7 +964,7 @@ def build(plan, built):
     # fitness vs. goal (sea-level VDOT)
     goal = None
     if nr and nr["goal_secs"] and nr["elev"] is not None:
-        hpts, htrend, hcal = hr_fitness(runs, rc, nr["meters"])
+        hpts, hcal = hr_fitness(runs, rc, nr["meters"])
         cal_names = ", ".join(f"{html.escape(r['name'])} ({r['d']:%b} {r['d'].day})" for r in hcal["races"]) if hcal else ""
         goal = {"v": round(sl_vdot(nr["meters"], nr["goal_secs"], nr["elev"]), 2), "race": nr["date"].isoformat(),
                 "name": nr["name"], "t": hms(nr["goal_secs"]),
@@ -979,9 +972,6 @@ def build(plan, built):
                            "name": r["name"], "t": hms(r["secs"])} for r in rc],
                 "hr": [{"d": p["d"].isoformat(), "v": round(p["sl"], 2), "gap": mmss(p["gap"]), "hr": round(p["hr"]),
                         "min": round(p["secs"] / 60), "laps": p["laps"], "race": p["race"]} for p in hpts],
-                "hrTrend": [{"d": t["d"].isoformat(), "v": round(t["v"], 2), "q1": round(t["q1"], 2), "q3": round(t["q3"], 2),
-                             "n": t["n"]} for t in htrend],
-                "hrDays": HRFIT_DAYS,
                 "slope": {"d0": sl_[0].isoformat(), "d1": sl_[1].isoformat(), "v0": round(sl_[2], 2),
                           "perMo": round(sl_[3] * DAYS_PER_MO, 2), "days": 2 * HRFIT_DAYS}
                 if (sl_ := hr_slope(hpts, 2 * HRFIT_DAYS)) else None,
@@ -996,20 +986,18 @@ def build(plan, built):
         'The dotted line is steady progress from current fitness to the goal on race day, the same path the checkpoint '
         'uses. Races and time trials are measured results. Between them, each small dot is an <b>HR-based estimate</b> '
         'from one run\'s steady laps at or near AeT (pace and HR together, so it needs no all-out effort; '
-        f'reps and races are left out, since HR lags pace above AeT). The line is their median over {HRFIT_DAYS} days centered on each run (so it stops {HRFIT_DAYS // 2} days short of today) and the band holds the middle half of them, so a run outside the band is day-to-day noise (sleep, fatigue, a few beats of sensor error), not a change in fitness. '
+        f'reps and races are left out, since HR lags pace above AeT). Single runs scatter by a point or two (sleep, fatigue, a few beats of sensor error), so read the trend, not one dot. '
         + (f'Estimates are calibrated to {cal_names} (× {hcal["k"]:.3f}), so they match race results on average; a second race or time trial will firm that up. '
            if hcal else 'No race or time trial with steady laps yet, so estimates are uncalibrated. ')
         + f'The dashed line is the trend over the last {2 * HRFIT_DAYS} days: a Theil–Sen line (the median of pairwise slopes, '
-        'Sen 1968, so one odd run can\'t tip it) through the estimates, labeled in VDOT per month next to the rate the '
-        'goal needs. '
+        'Sen 1968, so one odd run can\'t tip it) through the estimates; its rate is in the legend, next to the rate the goal needs '
+        'on the dotted line. '
         'See About for the method.</p>\n'
         '<div class="chart" id="cGoal"></div>\n'
         '<div class="legend"><span><span class="dt" style="background:var(--s1)"></span>Race or time trial</span>'
         '<span><span class="dt" style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--muted)"></span>HR-based estimate (one run)</span>'
-        f'<span><span class="ln" style="background:var(--s7)"></span>{HRFIT_DAYS}-day median</span>'
         f'<span><span class="ln" style="background:repeating-linear-gradient(90deg,var(--s7) 0 6px,transparent 6px 10px)"></span>Trend, last {2 * HRFIT_DAYS} days'
         + (f' ({goal["slope"]["perMo"]:+.1f} VDOT/mo)' if goal["slope"] else '') + '</span>'
-        '<span><span class="dt" style="background:var(--s7);opacity:.3;border-radius:2px"></span>Middle 50%</span>'
         '<span><span class="dt" style="background:var(--s2)"></span>Goal race</span>'
         '<span><span class="ln" style="background:var(--s2)"></span>Goal</span>'
         '<span><span class="ln dot"></span>On-track path</span></div>\n</section>')
@@ -1587,28 +1575,18 @@ summary { cursor: pointer; color: var(--muted); font-size: 12px; }
         hover(f, c, "<b>" + fmtDate(G.tt.d) + "</b> · " + G.tt.name + "<br>On track: VDOT " + tv.toFixed(1), 4);
       }
     }
-    if (G.hrTrend.length > 1) {  // middle 50% band, then the median, under the dots so each run keeps its own tooltip
-      var up = G.hrTrend.map(function (t) { return [day(t.d) + .5, t.q3]; }),
-          dn = G.hrTrend.map(function (t) { return [day(t.d) + .5, t.q1]; }).reverse();
-      el("path", { d: linePath(f, up.concat(dn)) + "Z", fill: "var(--s7)", "fill-opacity": .15, stroke: "none" }, f.svg);
-    }
-    if (G.hrTrend.length > 1)
-      el("path", { d: linePath(f, G.hrTrend.map(function (t) { return [day(t.d) + .5, t.v]; })), fill: "none", stroke: "var(--s7)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
     if (G.slope) {  // Theil-Sen line through the recent estimates
       var S = G.slope, x0 = day(S.d0) + .5, x1 = day(S.d1) + .5, v1 = S.v0 + S.perMo * 12 / 365.25 * (x1 - x0);
       var sl = el("line", { x1: f.X(x0), y1: f.Y(S.v0), x2: f.X(x1), y2: f.Y(v1), stroke: "var(--s7)", "stroke-width": 2, "stroke-dasharray": "6 4" }, f.svg);
       hover(f, sl, "<b>Trend</b>, last " + S.days + " days<br>" + (S.perMo >= 0 ? "+" : "") + S.perMo.toFixed(2) +
         " VDOT per month (Theil–Sen line through the HR-based estimates)", 2);
     }
-    var med = {};
-    G.hrTrend.forEach(function (t) { med[t.d] = t; });
     G.hr.forEach(function (p) {
-      var c = dot(f, f.X(day(p.d) + .5), f.Y(p.v), 3.5, false), t = med[p.d];
+      var c = dot(f, f.X(day(p.d) + .5), f.Y(p.v), 3.5, false);
       c.setAttribute("opacity", .55);
       hover(f, c, "<b>" + fmtDate(p.d) + "</b> · HR-based estimate<br>" + p.min + " min in " + p.laps + " steady lap" +
         (p.laps > 1 ? "s" : "") + " · " + p.gap + "/mi grade-adjusted at " + p.hr + " bpm<br>VDOT " + p.v.toFixed(1) +
-        " (sea level)" + (p.race ? " · race, sets the calibration" : "") +
-        (t ? "<br>" + G.hrDays + "-day median (centered) " + t.v.toFixed(1) + ", middle 50% " + t.q1.toFixed(1) + "–" + t.q3.toFixed(1) + " (" + t.n + " runs)" : ""), 3.5);
+        " (sea level)" + (p.race ? " · race, sets the calibration" : ""), 3.5);
     });
     G.races.forEach(function (p) {
       var c = dot(f, f.X(day(p.d) + .5), f.Y(p.v), 5.5, true, "--s1");
