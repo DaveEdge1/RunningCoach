@@ -9,7 +9,7 @@ _The scripts read thresholds from `config.json`. Update both when they change._
   Z1 Recovery <135 · Z2 Aerobic 135–144 · Z3 Tempo 145–157 · Z4 Threshold 158–167 · Z5 Above LT ≥168
 
 ## Goals
-- **2026-12-26 — 5K in Phoenix** (~1,100 ft, close to sea level). Goal: 21:00 (6:46/mi), set 2026-10-15; it lives in races.csv (goal_time).
+- **2026-12-26 — 5K in Phoenix** (~1,100 ft, close to sea level). Goal: 20:30 (6:36/mi), raised from 21:00 on 2026-11-03 after a 22:12 time trial at 7,140 ft; it lives in races.csv (goal_time).
   Switched from the 10K (goal was 44:00, set 2026-10-12) on 2026-10-15: the course is a 0.78 mi out-and-back, so the 10K meant 4 laps and 7 turnarounds.
 - **2027-02-06 — RunSedona 5K** (~4,450 ft, rolling: ~290 ft of climbing). Goal: under 21:00 (set 2026-10-30), worth about a 20:00 at sea level (VDOT ~49.7).
 - **The path to a first marathon** (set 2026-10-30; the Goals tab tracks it). He races where he likes to run and uses the equivalent sea-level fitness, but only with the most conservative handicaps: the least generous altitude method and no hill credit (e.g., Gate 1 = 20:49 at Flagstaff, 20:17 at Sedona on any course). Flat low courses (Phoenix etc.) only when he's already there. He dislikes big cities.

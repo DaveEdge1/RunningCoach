@@ -2,7 +2,7 @@
 
 **Start:** ~28 mi/wk on 5 days (4-week rolling average). 10K at 7,400 ft in 47:55 on Oct 10.
 **Target:** build to 45 mi/wk on 6 days by mid-November, then hold 45 through Dec 13 (set 2026-10-17). Grand Canyon and the elk hunt are the cut-back weeks; Puerto Peñasco is a full week.
-**Goal: 21:00 (6:46/mi, 4:12/km).** Switched from the 10K on Oct 15: the course is a 0.78 mi out-and-back, so the 5K is 2 laps (3 turnarounds) instead of 4 (7).
+**Goal: 20:30 (6:36/mi, 4:06/km; raised from 21:00 on 2026-11-03).** Switched from the 10K on Oct 15: the course is a 0.78 mi out-and-back, so the 5K is 2 laps (3 turnarounds) instead of 4 (7).
 **All training in Flagstaff (~7,000 ft).** The race is at ~1,100 ft, so expect race pace to feel easier than it does at home.
 
 ## Intensity guide (HR is primary; paces are Flagstaff estimates)
@@ -12,7 +12,7 @@
 | Steady (long-run finish) | 145–157 (Z3) | ~8:45–9:15 | Only where scheduled |
 | Threshold | **160–167** average (Z4) | ~7:35–7:50 grade-adjusted (Daniels T 7:34 from Nov 3) | Keep each rep's 90th-percentile HR **≤ 170**; if it gets there, ease off. The first rep can sit a little lower while HR catches up. Reps can be run by time (e.g., 7 min). |
 | Interval | 168+ (Z5) | ~6:56–7:00/mi (4:19–4:21/km) at Flagstaff, 6:40 at sea level | Run by pace. HR lags on short reps. |
-| 5K goal pace | 168+ (Z5) | ~7:02–7:06/mi at Flagstaff, 6:46/mi at sea level | Run by pace. |
+| 5K goal pace | 168+ (Z5) | ~6:52–6:57/mi at Flagstaff, 6:36/mi at sea level | Run by pace. |
 | Hill sprints | n/a | all-out | 6–8 × 8–10 s on a steep hill, full walk-back recovery. **Keep 2×/week (knee).** |
 
 ## Weekly template (6 days)
@@ -33,13 +33,13 @@ Weeks 2–4 build 38 → 41 → 43 (about 2–3 mi a week, all of it easy). Afte
 | 4 | Nov 2–8 | 43 | Mon off (rest) · Tue **5K time trial ✅ 22:12** at 7,140 ft (7:04 grade-adjusted; sea-level VDOT 46.4, up from 44.6) | Fri 12 |
 | 5 | Nov 9–15 | 23 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10): ~4 h down Tanner, 6 h up New Hance, 35-lb pack | Sat 9 |
 | 6 | Nov 16–22 | 45 | Tue 5 × 1 km at interval pace | Fri 12, last 2 steady |
-| 7 | Nov 23–29 | 45 | **Puerto Peñasco** (Sat Nov 21–Wed Nov 25): Tue 4 × 1 km at 5K goal pace (4:12/km, sea level) · Thu 3 × 1.5 mi threshold | Sat 12 |
+| 7 | Nov 23–29 | 45 | **Puerto Peñasco** (Sat Nov 21–Wed Nov 25): Tue 4 × 1 km at 5K goal pace (4:06/km, sea level) · Thu 3 × 1.5 mi threshold | Sat 12 |
 | 8 | Nov 30–Dec 6 | 32.5 · **cut-back** | Mon **5K time trial** (race-distance rehearsal and checkpoint for the goal) · **Elk hunt** (Thu Dec 3–Sun Dec 6): 3 easy at lunch each day (Mon–Tue swapped, Wed long, 2026-10-21) | Wed 9 |
-| 9 | Dec 7–13 | 45 | Tue **5 × 1000 m at 7:02, 200 m jog** (goal pace at Flagstaff) · Thu 3 × 1.5 mi threshold | Sat 12, last 2 steady |
-| 10 | Dec 14–20 | 42 | Tue **5 × 1000 m at 7:02, 200 m jog** (repeat of Dec 8) · Thu 3 × 1 mi threshold | Sat 8 (shortened) |
+| 9 | Dec 7–13 | 45 | Tue **5 × 1000 m at 6:52–6:57, 200 m jog** (goal pace at Flagstaff) · Thu 3 × 1.5 mi threshold | Sat 12, last 2 steady |
+| 10 | Dec 14–20 | 42 | Tue **5 × 1000 m at 6:52–6:57, 200 m jog** (repeat of Dec 8) · Thu 3 × 1 mi threshold | Sat 8 (shortened) |
 | 11 | Dec 21–26 | ~16 + race · **taper** | Tue 3 × 1 km at goal effort + 4 × 200 m | **Sat: RACE (5K)** |
 
-Paces come from the most recent race or time trial: the Nov 3 time trial (22:12 at 7,140 ft, sea-level 21:08–21:21, VDOT 46.4; set 2026-11-03) until Nov 30, which also checks progress toward the goal. Nov 3 opened a little quick (7:00 grade-adjusted for the first half mile, 6:48 at 1–1.5 mi) and then sat at 7:15 in the middle; the warm-up was only ~1 mi. For Nov 30, warm up the full 2 mi + strides, then run the first 800 m at 7:10 (1:47 per 400), 7:00–7:04 (1:44–1:45) to 2.5 mi, and race the last 0.6, on a track or flat, smooth loop with each 400 m lapped (or a pace alert). **Goal decision (2026-11-03):** if Nov 30 is about 21:50 or faster at Flagstaff (VDOT ≈ 47.5+), move the Phoenix goal to 20:45; around 22:00, keep 21:00. The HR-based trend says +0.8 VDOT/month, which projects ≈ 47.8 (≈ 20:43) on race day. Earlier: the Oct 10 10K set paces until Nov 3 (Oct 27's trial was abandoned). Oct 27 opened at 5:36–6:08 for the first minute and fell apart; its reps at 6:52 match Daniels Interval pace for VDOT ~47, which predicts 7:02–7:06 for a 5K at 7,000 ft (2026-10-27) (the 10K converts to roughly 22:45–23:00 at 7,000 ft), racing the last mile. "Goal" sessions use 21:00 converted to the altitude where they're run. See `plan.csv` (or the calendar) for each day.
+Paces come from the most recent race or time trial: the Nov 3 time trial (22:12 at 7,140 ft, sea-level 21:08–21:21, VDOT 46.4; set 2026-11-03) until Nov 30, which also checks progress toward the goal. Nov 3 opened a little quick (7:00 grade-adjusted for the first half mile, 6:48 at 1–1.5 mi) and then sat at 7:15 in the middle; the warm-up was only ~1 mi. For Nov 30, warm up the full 2 mi + strides, then run the first 800 m at 7:10 (1:47 per 400), 7:00–7:04 (1:44–1:45) to 2.5 mi, and race the last 0.6, on a track or flat, smooth loop with each 400 m lapped (or a pace alert). **Goal raised to 20:30 (2026-11-03, his call)**: sea-level VDOT 48.5, +2.1 from Nov 3 in 53 days (≈ 1.2 VDOT/month; the HR-based trend is +0.8/month, which projects ≈ 20:43). On that path Nov 30 needs VDOT ≈ 47.5, about 21:50 at Flagstaff. Earlier: the Oct 10 10K set paces until Nov 3 (Oct 27's trial was abandoned). Oct 27 opened at 5:36–6:08 for the first minute and fell apart; its reps at 6:52 match Daniels Interval pace for VDOT ~47, which predicts 7:02–7:06 for a 5K at 7,000 ft (2026-10-27) (the 10K converts to roughly 22:45–23:00 at 7,000 ft), racing the last mile. "Goal" sessions use 20:30 converted to the altitude where they're run. See `plan.csv` (or the calendar) for each day.
 
 ## This week and next, day by day
 **Week 1 (Oct 12–18), race recovery, 32 mi on 6 days, all easy**
