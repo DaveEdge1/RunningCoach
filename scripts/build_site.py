@@ -42,10 +42,10 @@ def load_actuals():
     if (ROOT / "data" / "trace.csv").exists():
         with open(ROOT / "data" / "trace.csv", encoding="utf-8") as f:
             for r in csv.DictReader(f):
-                col = lambda k: [None if x == "-" else int(x) for x in (r.get(k) or "").split()]
+                col = lambda k, num=int: [None if x == "-" else num(x) for x in (r.get(k) or "").split()]
                 traces[(r["date"], r["start"])] = {"bin": int(r["bin_secs"]), "hr": col("hr"),
                                                    "gap": col("gap_secs"), "pace": col("pace_secs"),
-                                                   "elev": col("elev_ft")}
+                                                   "elev": col("elev_ft"), "grade": col("grade_pct", float)}
     hist = {}
     if (ROOT / "data" / "hr_hist.csv").exists():
         with open(ROOT / "data" / "hr_hist.csv", encoding="utf-8") as f:
@@ -381,7 +381,9 @@ def run_trace(run, W=640):
     enc = lambda vals: " ".join("-" if v is None else str(round(v)) for v in vals)
     data = (f'data-bin="{b}" data-hr="{enc(t["hr"])}" data-gap="{enc(gs)}" data-pace="{enc(t["pace"])}" '
             f'data-laps="{" ".join(map(str, lap_marks))}" data-l="{ml}" data-pw="{pw}"'
-            + (f' data-elev="{enc(ev)}"' if ev else ""))
+            + (f' data-elev="{enc(ev)}"' if ev else "")
+            + (f' data-grade="{" ".join("-" if v is None else f"{v:g}" for v in t["grade"])}"'
+               if len(t.get("grade") or []) == n else ""))
     return (f'<svg class="trace" viewBox="0 0 {W} {H}" {data} role="img" '
             f'aria-label="Heart rate, grade-adjusted pace{" and elevation" if ev else ""} over {mins:.0f} min">{"".join(p)}</svg>')
 
@@ -842,7 +844,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
   document.querySelectorAll("svg.trace").forEach(function (svg) {
     var arr = function (k) { return svg.dataset[k].split(" ").map(function (v) { return v === "-" ? null : +v; }); };
     var hr = arr("hr"), gap = arr("gap"), pace = arr("pace"), bin = +svg.dataset.bin;
-    var elev = svg.dataset.elev ? arr("elev") : null;
+    var elev = svg.dataset.elev ? arr("elev") : null, grade = svg.dataset.grade ? arr("grade") : null;
     var laps = svg.dataset.laps ? svg.dataset.laps.split(" ").map(Number) : [];
     var L = +svg.dataset.l, PW = +svg.dataset.pw, guide = svg.querySelector(".guide");
     svg.addEventListener("pointermove", function (ev) {
@@ -855,7 +857,8 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
       var lap = 1; laps.forEach(function (c) { if (t >= c) lap++; });
       tip.innerHTML = "<b>" + mmss(t) + "</b> · lap " + lap + "<br>HR " + (hr[i] || "—") +
         "<br>GAP " + (gap[i] ? mmss(gap[i]) + "/mi" + (pace[i] >= %%WALK%% ? " (walking)" : "") : "— (stopped)") + (pace[i] ? "<br>Pace " + mmss(pace[i]) + "/mi" : "") +
-        (elev && elev[i] != null ? "<br>Elev " + elev[i].toLocaleString() + " ft" : "");
+        (elev && elev[i] != null ? "<br>Elev " + elev[i].toLocaleString() + " ft" : "") +
+        (grade && grade[i] != null ? "<br>Grade " + (grade[i] > 0 ? "+" : grade[i] < 0 ? "−" : "") + Math.abs(grade[i]).toFixed(1) + "%" : "");
       tip.style.display = "block";
       var w = tip.offsetWidth, h = tip.offsetHeight, tx = ev.clientX + 14, ty = ev.clientY + 14;
       if (tx + w > innerWidth - 8) tx = ev.clientX - w - 14;

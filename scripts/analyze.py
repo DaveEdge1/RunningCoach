@@ -300,8 +300,9 @@ def hr_segments(laps, recs, ga, trail=frozenset()):
 
 
 def trace(recs, ga, prof=None):
-    """Per TRACE_BIN seconds: mean HR, grade-adjusted pace, pace (sec/mi) and elevation (ft), from grade_adjust's ga.
-    Elevation is the map profile (prof) at the bin's distance, else the barometer's mean over the bin.
+    """Per TRACE_BIN seconds: mean HR, grade-adjusted pace, pace (sec/mi), elevation (ft) and grade (%), from
+    grade_adjust's ga. Elevation is the map profile (prof) at the bin's distance, else the barometer's mean over the
+    bin; grade is the mean of the grades GAP used, None when stopped.
     GAP is computed second by second so short hills keep their grade. Minetti's model is
     for running, so GAP during walking is only an estimate. A stopped bin gets neither pace."""
     n = len(recs)
@@ -312,18 +313,19 @@ def trace(recs, ga, prof=None):
     for i in range(0, n, TRACE_BIN):
         j = min(n - 1, i + TRACE_BIN)
         hr = [r[0] for r in recs[i:i + TRACE_BIN] if r[0]]
-        gap = pace_s = None
+        gap = pace_s = grade = None
         if None not in (dist[i], dist[j]) and j > i:
             v = (dist[j] - dist[i]) / (j - i)
             if v >= 1.0:  # slower than ~27 min/mi counts as stopped
                 pace_s = M_PER_MI / v
                 gs = sum(adj[i:j]) / (j - i)
                 gap = M_PER_MI / gs if gs > 0 else None
+                grade = 100 * sum(g for g, _ in ga[i:j]) / (j - i)
         ds = [r[2] for r in recs[i:i + TRACE_BIN] if r[2] is not None]
         alts = [r[3] for r in recs[i:i + TRACE_BIN] if r[3] is not None]
         el = (E(sum(ds) / len(ds)) if E and ds else sum(alts) / len(alts) if alts else None)
         out.append((round(sum(hr) / len(hr)) if hr else None, gap and round(gap), pace_s and round(pace_s),
-                    el and round(el * FT_PER_M)))
+                    el and round(el * FT_PER_M), None if grade is None else round(grade, 1)))
     return out
 
 
@@ -481,7 +483,7 @@ def main():
     elevation.save()
     with open(ROOT / "data" / "trace.csv", "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["date", "start", "bin_secs", "hr", "gap_secs", "pace_secs", "elev_ft"])  # space-separated, "-" = none
+        w.writerow(["date", "start", "bin_secs", "hr", "gap_secs", "pace_secs", "elev_ft", "grade_pct"])  # space-separated, "-" = none
         w.writerows(trace_rows)
 
     with open(ROOT / "data" / "laps.csv", "w", newline="") as f:
