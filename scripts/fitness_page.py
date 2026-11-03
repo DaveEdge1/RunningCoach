@@ -428,7 +428,7 @@ def hr_fitness(runs, rc, meters):
     (the slow component), so a rep's average HR understates its cost and reads high, and a race's drifts up and
     reads low. The population HR-VO2 relation doesn't
     fit any one runner exactly, so every estimate is scaled by k, the median over the last HRFIT_CAL_RACES races or
-    time trials of the factor that puts the median of the runs within HRFIT_DAYS / 2 of the race on its sea-level
+    time trials (not on trail days) of the factor that puts the median of the runs within HRFIT_DAYS / 2 of the race on its sea-level
     VDOT (grade-adjusted). Each run goes on the sea-level scale the way a race does:
     VDOT -> time at `meters` at the run's elevation -> sea-level VDOT.
     Returns (points, calibration or None)."""
@@ -464,7 +464,8 @@ def hr_fitness(runs, rc, meters):
             lo, hi = (mid, hi) if statistics.median(sl_at(p, mid) for p in win) < target else (lo, mid)
         return (lo + hi) / 2
 
-    cal = [(r, c) for r in rc if (c := race_k(r)) is not None][-HRFIT_CAL_RACES:]
+    # a race on rough footing (a "trail" note) reads slow for its fitness, so it doesn't set the calibration
+    cal = [(r, c) for r in rc if r["d"].isoformat() not in trails and (c := race_k(r)) is not None][-HRFIT_CAL_RACES:]
     k = statistics.median(c for _, c in cal) if cal else 1.0
     for p in pts:
         p["v"] = k * p["raw"]
@@ -1057,7 +1058,8 @@ def build(plan, built):
         "Compr Physiol 2:933), so a rep's average HR understates its cost and reads high, while a race's drifts up and "
         "reads low. A population formula doesn't fit one runner exactly, so estimates are scaled so that the median of "
         f"the runs within {HRFIT_DAYS // 2} days of each of your last {HRFIT_CAL_RACES} races or time trials matches its "
-        "result (Runalyze calibrates its effective VO2max the same way), then converted to sea level like a race.</p>\n"
+        "result (Runalyze calibrates its effective VO2max the same way; a race marked trail in notes.md doesn't count, "
+        "since rough footing makes it read slow), then converted to sea level like a race.</p>\n"
         f"<p><b>Load ramp</b> is the acute:chronic workload ratio: load over the last {ACUTE_DAYS} days divided by the weekly "
         f"average over the last {CHRONIC_DAYS}. "
         '<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4789704">Gabbett (2016, Br J Sports Med 50:273)</a> calls '

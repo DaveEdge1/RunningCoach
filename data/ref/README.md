@@ -73,7 +73,9 @@ cost of running at grade-adjusted speed v (the equation inside VDOT) and %HRR = 
   as Runalyze does with its effective VO2max correction factor (https://runalyze.com/help/article/vo2max).
   Since races run above AeT, a race isn't compared with its own laps: the factor puts the median of the runs
   within `rolling_days` / 2 of the race on the race's sea-level VDOT (median factor over the last
-  `calibration_races`).
+  `calibration_races`). A race marked trail in notes.md doesn't calibrate: rough footing slows it for reasons
+  pace and HR can't see (dropped 2026-11-03 for the Oct 10 10K, whose factor was 0.99 against the
+  Nov 3 5K time trial's ~1.06).
 
 ## Race calculator ranges (race_errors.csv, built by scripts/race_errors.py)
 How far real runners land from VDOT predictions, used by the Calculator tab for its center (VDOT × the median miss)
