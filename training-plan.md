@@ -18,48 +18,48 @@
 ## Weekly template (6 days)
 | Mon | Tue | Wed | Thu | Fri | Sat | Sun |
 |---|---|---|---|---|---|---|
-| Easy | **Workout A** | Easy + hill sprints | Easy → **Workout B** from wk 5 | Off | **Long** | Easy + hill sprints |
+| Easy | **Workout A** | Easy + hill sprints | **Off** | Easy → **Workout B** in wks 9–10 | **Long** (Sun when Fri has a workout) | Easy + hill sprints |
 
-Workouts include ~1.5 mi warm-up and cool-down. The day before or after a workout is always easy.
+Thursday is the rest day (changed 2026-11-03; his preference). Workouts include ~1.5 mi warm-up and cool-down. The day before or after a workout is always easy, so a Friday workout pushes the long run to Sunday.
 
 ## Week by week
-Weeks 2–4 build 38 → 41 → 43 (about 2–3 mi a week, all of it easy). After the Grand Canyon cut-back, weeks 6, 7 and 9 hold 45, with the time trial and elk hunt between them. Week 10 stays near 42 with a shorter long run; the taper is race week only (about 1 week, his preference, 2026-10-17). The extra miles go on easy days only; workouts and long runs stay as they were.
+Weeks 2–4 built 38 → 39.5; week 4 lands near 29 (a rest day after the time trial, and a fresh start to the canyon). After the Grand Canyon cut-back, weeks 6–7 run 41–42 around the Puerto Peñasco drives, and week 9 holds 45, with the time trial and elk hunt between them. Thursdays are off from Nov 5 (2026-11-03). Week 10 stays near 42 with a shorter long run; the taper is race week only (about 1 week, his preference, 2026-10-17). The extra miles go on easy days only; workouts and long runs stay as they were.
 
 | Wk | Dates | Run miles | Key sessions | Long |
 |---|---|---|---|---|
 | 1 | Oct 12–18 | 32 | Race recovery: easy only | Sat 9 |
 | 2 | Oct 19–25 | 38 | Tue 4 × 7 min threshold · Thu off · Sat away | Fri 9 · Sun 9 |
 | 3 | Oct 26–Nov 1 | 39.5 | Tue 5K time trial **abandoned** (out at 6:52/mi, stopped twice; not scored) | Sat 11 |
-| 4 | Nov 2–8 | 43 | Mon off (rest) · Tue **5K time trial ✅ 22:12** at 7,140 ft (7:04 grade-adjusted; sea-level VDOT 46.4, up from 44.6) | Fri 12 |
-| 5 | Nov 9–15 | 23 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10): ~4 h down Tanner, 6 h up New Hance, 35-lb pack | Sat 9 |
-| 6 | Nov 16–22 | 45 | Tue 5 × 1 km at interval pace | Fri 12, last 2 steady |
-| 7 | Nov 23–29 | 45 | **Puerto Peñasco** (Sat Nov 21–Wed Nov 25): Tue 4 × 1 km at 5K goal pace (4:06/km, sea level) · Thu 3 × 1.5 mi threshold | Sat 12 |
-| 8 | Nov 30–Dec 6 | 32.5 · **cut-back** | Mon **5K time trial** (race-distance rehearsal and checkpoint for the goal) · **Elk hunt** (Thu Dec 3–Sun Dec 6): 3 easy at lunch each day (Mon–Tue swapped, Wed long, 2026-10-21) | Wed 9 |
-| 9 | Dec 7–13 | 45 | Tue **5 × 1000 m at 6:52–6:57, 200 m jog** (goal pace at Flagstaff) · Thu 3 × 1.5 mi threshold | Sat 12, last 2 steady |
-| 10 | Dec 14–20 | 42 | Tue **5 × 1000 m at 6:52–6:57, 200 m jog** (repeat of Dec 8) · Thu 3 × 1 mi threshold | Sat 8 (shortened) |
-| 11 | Dec 21–26 | ~16 + race · **taper** | Tue 3 × 1 km at goal effort + 4 × 200 m | **Sat: RACE (5K)** |
+| 4 | Nov 2–8 | ~29 | Mon off (rest; the 6 mi isn't made up) · Tue **5K time trial ✅ 22:12** at 7,140 ft (7:04 grade-adjusted; sea-level VDOT 46.4, up from 44.6) · Thu off · Sat easy, no sprints, before the canyon descent | Fri 11 (10–12) |
+| 5 | Nov 9–15 | 21 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10): ~4 h down Tanner, 6 h up New Hance, 35-lb pack · Wed–Thu off · run by feel while quads recover | Sat 9 |
+| 6 | Nov 16–22 | 42 | Tue 5 × 1 km at interval pace · Thu off · Sat off (drive) | Fri 13, last 2 steady |
+| 7 | Nov 23–29 | 41 | **Puerto Peñasco** (Sat Nov 21–Wed Nov 25): Tue 4 × 1 km at 5K goal pace (4:06/km, sea level) · Wed off (drive) · Thu off · the threshold session is dropped (no room between Tue's reps and the Nov 30 trial) | Sat 12 |
+| 8 | Nov 30–Dec 6 | 29.5 · **cut-back** | Mon **5K time trial** (race-distance rehearsal and checkpoint for the goal) · **Elk hunt** (Thu Dec 3–Sun Dec 6): 3 easy at lunch Fri–Sun, Thu off (Mon–Tue swapped, Wed long, 2026-10-21) | Wed 9 |
+| 9 | Dec 7–13 | 45 | Tue **5 × 1000 m at 6:52–6:57, 200 m jog** (goal pace at Flagstaff; if Nov 30 falls short of ~21:50, run them at its 5K pace) · Thu off · Fri 3 × 1.5 mi threshold | Sun 12, last 2 steady |
+| 10 | Dec 14–20 | 42 | Tue **5 × 1000 m at 6:52–6:57, 200 m jog** (repeat of Dec 8) · Thu off · Fri 3 × 1 mi threshold | Sun 8 (shortened) |
+| 11 | Dec 21–26 | ~16 + race · **taper** | Tue 3 × 1 km at goal effort + 4 × 200 m · Thu off · Fri 3 mi shakeout + strides | **Sat: RACE (5K)** |
 
 Paces come from the most recent race or time trial: the Nov 3 time trial (22:12 at 7,140 ft, sea-level 21:08–21:21, VDOT 46.4; set 2026-11-03) until Nov 30, which also checks progress toward the goal. Nov 3 opened a little quick (7:00 grade-adjusted for the first half mile, 6:48 at 1–1.5 mi) and then sat at 7:15 in the middle; the warm-up was only ~1 mi. For Nov 30, warm up the full 2 mi + strides, then run the first 800 m at 7:10 (1:47 per 400), 7:00–7:04 (1:44–1:45) to 2.5 mi, and race the last 0.6, on a track or flat, smooth loop with each 400 m lapped (or a pace alert). **Goal raised to 20:30 (2026-11-03, his call)**: sea-level VDOT 48.5, +2.1 from Nov 3 in 53 days (≈ 1.2 VDOT/month; the HR-based trend is +0.8/month, which projects ≈ 20:43). On that path Nov 30 needs VDOT ≈ 47.5, about 21:50 at Flagstaff. Earlier: the Oct 10 10K set paces until Nov 3 (Oct 27's trial was abandoned). Oct 27 opened at 5:36–6:08 for the first minute and fell apart; its reps at 6:52 match Daniels Interval pace for VDOT ~47, which predicts 7:02–7:06 for a 5K at 7,000 ft (2026-10-27) (the 10K converts to roughly 22:45–23:00 at 7,000 ft), racing the last mile. "Goal" sessions use 20:30 converted to the altitude where they're run. See `plan.csv` (or the calendar) for each day.
 
 ## This week and next, day by day
-**Week 1 (Oct 12–18), race recovery, 32 mi on 6 days, all easy**
-- Mon 10/12: 5.1 easy ✅
-- Tue 10/13: 5 easy
-- Wed 10/14: 5 easy + hill sprints (6 × 8 s)
-- Thu 10/15: off (swapped with Fri)
-- Fri 10/16: 3 × 1 mi threshold (felt fresh; first workout since the 10K) ✅ 5.8 mi
-- Sat 10/17: 4–5 easy + hill sprints (swapped with Sun)
-- Sun 10/18: 9 easy (long), HR < 145
+**Week 4 (Nov 2–8), ~29 mi** (changed 2026-11-03)
+- Mon 11/2: off (body needed rest) ✅
+- Tue 11/3: 5K time trial ✅ 22:12 at 7,140 ft, 5.7 mi
+- Wed 11/4: 7 easy + hill sprints
+- Thu 11/5: off
+- Fri 11/6: 10–12 easy (long), HR < 145
+- Sat 11/7: 5 easy, **no hill sprints**
+- Sun 11/8: Grand Canyon: Tanner Trail down (−4,500 ft, 35-lb pack)
 
-If your legs still feel the race by Wednesday, cut Thursday rather than pushing through.
+Don't make up Monday. The descent is the hardest thing on your legs this week: eccentric quad load with a pack, and your knee history. Go down with poles and short steps if you have them.
 
-**Week 2 (Oct 19–25), 38 mi**
-- Mon: 6 easy ✅ 6.3 mi
-- Tue: 1.5 wu · 4 × 7 min threshold (ran by time instead of 1 mi), 90 s jog · 2 cd ✅ 7.4 mi
-- Wed: 6 easy + hill sprints ✅ 6.2 mi (skipped the sprints; lap 2 on trail)
-- Thu: off (changed 2026-10-23)
-- Fri: 9 easy (long, moved from Sat) + hill sprints ✅ 8.9 mi
-- Sat: off (away)
-- Sun: 9 easy, HR < 145 (changed 2026-10-23) ✅ 7.1 mi
+**Week 5 (Nov 9–15), ~21 mi, cut-back**
+- Mon 11/9: paddle 8 mi on the Colorado
+- Tue 11/10: hike out New Hance (+4,500 ft)
+- Wed 11/11: off
+- Thu 11/12: off
+- Fri 11/13: 6 easy + hill sprints (skip the sprints if quads are still sore)
+- Sat 11/14: 9 easy (long)
+- Sun 11/15: 6 easy + hill sprints
 
-About 38 mi, as planned. Sunday's 9 comes two days before Tuesday's 5K time trial: keep it truly easy, and cut it to 7 if your legs feel the travel. Monday's 6 easy + strides then sets up the trial.
+Expect 3–4 days of quad soreness after the descent. Run these by feel and cut any of them short; Tue 11/17's intervals matter more than this week's miles.
