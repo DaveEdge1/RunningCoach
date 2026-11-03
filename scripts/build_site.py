@@ -42,9 +42,10 @@ def load_actuals():
     if (ROOT / "data" / "trace.csv").exists():
         with open(ROOT / "data" / "trace.csv", encoding="utf-8") as f:
             for r in csv.DictReader(f):
-                col = lambda k: [None if x == "-" else int(x) for x in r[k].split()]
+                col = lambda k: [None if x == "-" else int(x) for x in (r.get(k) or "").split()]
                 traces[(r["date"], r["start"])] = {"bin": int(r["bin_secs"]), "hr": col("hr"),
-                                                   "gap": col("gap_secs"), "pace": col("pace_secs")}
+                                                   "gap": col("gap_secs"), "pace": col("pace_secs"),
+                                                   "elev": col("elev_ft")}
     hist = {}
     if (ROOT / "data" / "hr_hist.csv").exists():
         with open(ROOT / "data" / "hr_hist.csv", encoding="utf-8") as f:
@@ -294,7 +295,8 @@ def gap_curve(counts, W=420, H=64, compact=False):
 
 
 def run_trace(run, W=640):
-    """HR and grade-adjusted pace vs time as two stacked panels sharing the time axis, with lap boundaries.
+    """HR, grade-adjusted pace and (when known) elevation vs time as stacked panels sharing the time axis, with lap
+    boundaries. The elevation panel is the course profile: map elevation along the track, else the barometer.
     Hover data rides on data- attributes for the page script."""
     t = run.get("trace")
     if not t or not any(t["hr"]):
@@ -309,7 +311,12 @@ def run_trace(run, W=640):
     ml, mr = 40, 8
     H1, H2, gapy, axh = 70, 70, 10, 16  # HR and GAP panels the same size
     top2 = H1 + gapy
-    H = top2 + H2 + axh
+    ev = t.get("elev") or []
+    ev = ev if len(ev) == n and any(e is not None for e in ev) else []
+    H3 = 46 if ev else 0
+    top3 = top2 + H2 + gapy
+    bottom = top3 + H3 if ev else top2 + H2  # bottom of the last panel
+    H = bottom + axh
     pw = W - ml - mr
     X = lambda i: ml + (i + .5) / n * pw
     Yh = lambda h: 4 + (hhi - h) / (hhi - hlo) * (H1 - 8)
@@ -333,8 +340,21 @@ def run_trace(run, W=640):
     p = [f'<defs><linearGradient id="{gid}" gradientUnits="userSpaceOnUse" x1="0" y1="{Yh(anc[0]):.1f}" x2="0" '
          f'y2="{Yh(anc[-1]):.1f}">{stops}</linearGradient>'
          f'<clipPath id="{gid}c"><rect x="{ml}" y="{top2}" width="{pw}" height="{H2}"/></clipPath></defs>']
-    for y0, h in ((0, H1), (top2, H2)):
+    for y0, h in ((0, H1), (top2, H2)) + (((top3, H3),) if ev else ()):
         p.append(f'<rect class="pnl" x="{ml}" y="{y0}" width="{pw}" height="{h}"/>')
+    if ev:  # course profile: filled to the panel floor, range padded so a flat run doesn't look mountainous
+        evv = [e for e in ev if e is not None]
+        elo, ehi = min(evv), max(evv)
+        if ehi - elo < 60:
+            mid = (elo + ehi) / 2
+            elo, ehi = mid - 30, mid + 30
+        Ye = lambda e: top3 + 4 + (ehi - e) / (ehi - elo) * (H3 - 8)
+        pts = [(X(i), Ye(e)) for i, e in enumerate(ev) if e is not None]
+        p.append(f'<path class="el" d="M{pts[0][0]:.1f},{top3 + H3} '
+                 + " ".join(f"L{x:.1f},{y:.1f}" for x, y in pts) + f' L{pts[-1][0]:.1f},{top3 + H3}Z"/>')
+        p.append(f'<text class="pl" x="{ml + 4}" y="{top3 + 11}">Elev ft</text>')
+        for v in (min(evv), max(evv)):
+            p.append(f'<text x="{ml - 5}" y="{Ye(v) + 3:.1f}" text-anchor="end">{v:,}</text>')
     p.append(f'<text class="pl" x="{ml + 4}" y="11">HR</text><text class="pl" x="{ml + 4}" y="{top2 + 11}">GAP /mi</text>')
     for v in (round(hlo + 3), round(hhi - 3)):
         p.append(f'<text x="{ml - 5}" y="{Yh(v) + 3:.1f}" text-anchor="end">{v}</text>')
@@ -349,7 +369,7 @@ def run_trace(run, W=640):
         cum += int(l["secs"])
         x = ml + cum / (n * b) * pw
         lap_marks.append(cum)
-        p.append(f'<line class="lap" x1="{x:.1f}" x2="{x:.1f}" y1="0" y2="{top2 + H2}"/>')
+        p.append(f'<line class="lap" x1="{x:.1f}" x2="{x:.1f}" y1="0" y2="{bottom}"/>')
     mins = n * b / 60
     step = 10 if mins <= 90 else 20
     for mm in range(0, int(mins) + 1, step):
@@ -357,12 +377,13 @@ def run_trace(run, W=640):
         p.append(f'<text x="{x:.1f}" y="{H - 3}" text-anchor="middle">{mm}{" min" if mm == 0 else ""}</text>')
     p.append(f'<path class="gl" clip-path="url(#{gid}c)" d="{line(shown, Yg)}"/>')
     p.append(f'<path class="hl" stroke="url(#{gid})" d="{line(t["hr"], Yh)}"/>')
-    p.append(f'<line class="guide" y1="0" y2="{top2 + H2}" style="display:none"/>')
+    p.append(f'<line class="guide" y1="0" y2="{bottom}" style="display:none"/>')
     enc = lambda vals: " ".join("-" if v is None else str(round(v)) for v in vals)
     data = (f'data-bin="{b}" data-hr="{enc(t["hr"])}" data-gap="{enc(gs)}" data-pace="{enc(t["pace"])}" '
-            f'data-laps="{" ".join(map(str, lap_marks))}" data-l="{ml}" data-pw="{pw}"')
+            f'data-laps="{" ".join(map(str, lap_marks))}" data-l="{ml}" data-pw="{pw}"'
+            + (f' data-elev="{enc(ev)}"' if ev else ""))
     return (f'<svg class="trace" viewBox="0 0 {W} {H}" {data} role="img" '
-            f'aria-label="Heart rate and grade-adjusted pace over {mins:.0f} min">{"".join(p)}</svg>')
+            f'aria-label="Heart rate, grade-adjusted pace{" and elevation" if ev else ""} over {mins:.0f} min">{"".join(p)}</svg>')
 
 
 def zone_text(zones, total):
@@ -748,6 +769,7 @@ button:disabled { opacity: .4; cursor: default; }
 .trace .pnl { fill: none; stroke: var(--line); }
 .trace .hl { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .trace .gl { fill: none; stroke: var(--s1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trace .el { fill: var(--muted); fill-opacity: .22; stroke: var(--muted); stroke-width: 1.25; stroke-linejoin: round; }
 .gpc .gf { fill: var(--s1); fill-opacity: .75; }
 .gpc .tick { stroke: var(--muted); stroke-width: .5; }
 .week .gpc text { font-size: 6.5px; }
@@ -820,6 +842,7 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
   document.querySelectorAll("svg.trace").forEach(function (svg) {
     var arr = function (k) { return svg.dataset[k].split(" ").map(function (v) { return v === "-" ? null : +v; }); };
     var hr = arr("hr"), gap = arr("gap"), pace = arr("pace"), bin = +svg.dataset.bin;
+    var elev = svg.dataset.elev ? arr("elev") : null;
     var laps = svg.dataset.laps ? svg.dataset.laps.split(" ").map(Number) : [];
     var L = +svg.dataset.l, PW = +svg.dataset.pw, guide = svg.querySelector(".guide");
     svg.addEventListener("pointermove", function (ev) {
@@ -831,7 +854,8 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
       guide.setAttribute("x1", gx); guide.setAttribute("x2", gx); guide.style.display = "";
       var lap = 1; laps.forEach(function (c) { if (t >= c) lap++; });
       tip.innerHTML = "<b>" + mmss(t) + "</b> · lap " + lap + "<br>HR " + (hr[i] || "—") +
-        "<br>GAP " + (gap[i] ? mmss(gap[i]) + "/mi" + (pace[i] >= %%WALK%% ? " (walking)" : "") : "— (stopped)") + (pace[i] ? "<br>Pace " + mmss(pace[i]) + "/mi" : "");
+        "<br>GAP " + (gap[i] ? mmss(gap[i]) + "/mi" + (pace[i] >= %%WALK%% ? " (walking)" : "") : "— (stopped)") + (pace[i] ? "<br>Pace " + mmss(pace[i]) + "/mi" : "") +
+        (elev && elev[i] != null ? "<br>Elev " + elev[i].toLocaleString() + " ft" : "");
       tip.style.display = "block";
       var w = tip.offsetWidth, h = tip.offsetHeight, tx = ev.clientX + 14, ty = ev.clientY + 14;
       if (tx + w > innerWidth - 8) tx = ev.clientX - w - 14;

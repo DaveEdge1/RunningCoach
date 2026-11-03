@@ -299,13 +299,15 @@ def hr_segments(laps, recs, ga, trail=frozenset()):
     return out
 
 
-def trace(recs, ga):
-    """Per TRACE_BIN seconds: mean HR, grade-adjusted pace and pace (sec/mi), from grade_adjust's ga.
+def trace(recs, ga, prof=None):
+    """Per TRACE_BIN seconds: mean HR, grade-adjusted pace, pace (sec/mi) and elevation (ft), from grade_adjust's ga.
+    Elevation is the map profile (prof) at the bin's distance, else the barometer's mean over the bin.
     GAP is computed second by second so short hills keep their grade. Minetti's model is
     for running, so GAP during walking is only an estimate. A stopped bin gets neither pace."""
     n = len(recs)
     dist = [r[2] for r in recs]
     adj = [v for _, v in ga]
+    E = elev_at(prof) if prof else None
     out = []
     for i in range(0, n, TRACE_BIN):
         j = min(n - 1, i + TRACE_BIN)
@@ -317,7 +319,11 @@ def trace(recs, ga):
                 pace_s = M_PER_MI / v
                 gs = sum(adj[i:j]) / (j - i)
                 gap = M_PER_MI / gs if gs > 0 else None
-        out.append((round(sum(hr) / len(hr)) if hr else None, gap and round(gap), pace_s and round(pace_s)))
+        ds = [r[2] for r in recs[i:i + TRACE_BIN] if r[2] is not None]
+        alts = [r[3] for r in recs[i:i + TRACE_BIN] if r[3] is not None]
+        el = (E(sum(ds) / len(ds)) if E and ds else sum(alts) / len(alts) if alts else None)
+        out.append((round(sum(hr) / len(hr)) if hr else None, gap and round(gap), pace_s and round(pace_s),
+                    el and round(el * FT_PER_M)))
     return out
 
 
@@ -401,7 +407,7 @@ def main():
         for h in hr:
             counts[h] = counts.get(h, 0) + 1
         hist_rows.append([d, local.strftime("%H:%M"), " ".join(f"{b}:{c}" for b, c in sorted(counts.items()))])
-        tr = trace(recs, ga)
+        tr = trace(recs, ga, prof)
         trace_rows.append([d, local.strftime("%H:%M"), TRACE_BIN,
                            *(" ".join("-" if x is None else str(x) for x in col) for col in zip(*tr))])
         n = len(hr) or 1
@@ -475,7 +481,7 @@ def main():
     elevation.save()
     with open(ROOT / "data" / "trace.csv", "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["date", "start", "bin_secs", "hr", "gap_secs", "pace_secs"])  # space-separated, "-" = none
+        w.writerow(["date", "start", "bin_secs", "hr", "gap_secs", "pace_secs", "elev_ft"])  # space-separated, "-" = none
         w.writerows(trace_rows)
 
     with open(ROOT / "data" / "laps.csv", "w", newline="") as f:
