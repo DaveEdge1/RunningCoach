@@ -552,14 +552,17 @@ def laps_table(run):
             f'<tbody>{rows}</tbody></table></details>')
 
 
-def day_html(d, plan, act, start):
+def day_html(d, plan, act, start, wo=None):
+    """`wo`: the workout block for this day (fitness_page.workout_blocks): reps vs. targets, or the target ahead."""
     p, a = plan.get(d), act.get(d)
     body = plan_html(p) if p else '<div class="plan none">—</div>'
     if a:
         body += f'<div class="act">{act_summary(a, load=True)} · {a["elev"]} ft'
         charts = "".join(run_trace(r) for r in a["runs"])
         body += charts or zone_bar(a["zones"], a["hr_secs"])
-        body += "".join(laps_table(r) for r in a["runs"]) + "</div>"
+        body += (wo or "") + "".join(laps_table(r) for r in a["runs"]) + "</div>"
+    elif wo:
+        body += wo
     elif missed(d, plan):
         body += '<div class="act missed">not recorded</div>'
     body += cross_on(d)
@@ -583,7 +586,10 @@ def main():
     while wk0 <= last:
         weeks.append(week_html(wk0, plan, act, start))
         wk0 += timedelta(7)
-    days = [day_html(first + timedelta(i), plan, act, start) for i in range((last - first).days + 1)]
+    import fitness_page  # imports this module, so not at the top
+    wo = fitness_page.workout_blocks(plan)
+    days = [day_html(first + timedelta(i), plan, act, start, wo.get(first + timedelta(i)))
+            for i in range((last - first).days + 1)]
 
     built = datetime.now(TZ)
     legend = "".join(f'<span class="tag t-{k}">{v}</span>' for k, v in TYPES.items() if k != "off")
@@ -600,7 +606,6 @@ def main():
     (ROOT / "docs" / ".nojekyll").touch()
     print(f"Wrote docs/index.html ({len(months)} months, {len(weeks)} weeks, {len(days)} days)")
 
-    import fitness_page
     fitness_page.build(plan, built)
 
     import calculator_page
@@ -653,7 +658,8 @@ nav.tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); }
 header { margin-bottom: 14px; }
 header h1 { margin: 0; }
 header .sub { color: var(--muted); margin: 2px 0 0; font-size: 13px; }
-@media (max-width: 520px) { .racebar .rdate { display: none; } }
+@media (max-width: 520px) { .racebar .rdate { display: none; } nav.tabs a { padding: 9px 12px; } }
+@media (max-width: 440px) { .racebar b, .racebar .sep { display: none; } .topbar { gap: 8px; } nav.tabs a { padding: 9px 10px; } }
 """
 
 
@@ -670,7 +676,7 @@ def tabs(current):
     if nr:
         goal = f' · goal {fmt_clock(nr["goal_secs"])}' if nr["goal_secs"] else ""
         race = (f'<div class="racebar"><b>{html.escape(nr["name"])}</b>'
-                f'<span class="rdate"> · {nr["date"]:%a %b} {nr["date"].day}{goal}</span> · '
+                f'<span class="rdate"> · {nr["date"]:%a %b} {nr["date"].day}{goal}</span><span class="sep"> · </span>'
                 f'<span class="cd" data-race="{nr["date"].isoformat()}"></span></div>'
                 '<script>(function () { var c = document.querySelector(".racebar .cd"), n = new Date(),'
                 ' t = new Date(n.getFullYear(), n.getMonth(), n.getDate()), r = new Date(c.dataset.race + "T00:00:00"),'
@@ -784,6 +790,19 @@ button:disabled { opacity: .4; cursor: default; }
 .lapd .laps th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
 .trl { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; margin-left: 4px; }
 .lapd .laps tbody tr:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+/* day view: workout reps vs. targets (fitness_page.workout_blocks) */
+.wo { margin-top: 14px; color: var(--ink); max-width: 640px; }
+.wo h3 { font-size: 15px; margin: 0 0 4px; }
+.wo .wot { font-size: 13px; color: var(--muted); margin: 2px 0; }
+.wo table.reps { font-size: 14px; width: 100%; margin-top: 6px; }
+.wo .reps th, .wo .reps td { padding: 5px 10px 5px 0; border-bottom: 1px solid var(--line); }
+.wo .reps th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.wo .reps th:first-child, .wo .reps td:first-child { text-align: left; }
+.wo .reps td { white-space: nowrap; }
+.wo .reps small { color: var(--muted); font-size: 11px; margin-left: 2px; }
+.wo .ok { color: var(--ok); } .wo .warn { color: var(--workout); } .wo .bad { color: var(--tired); font-weight: 600; }
+.wo details.how summary { padding: 6px 0; }
+.wo .howb p { font-size: 13px; color: var(--muted); margin: 4px 0; }
 .act b { color: var(--ink); }
 .trace .thr { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; opacity: .45; }
 .trace .lap { stroke: var(--muted); stroke-width: 1; opacity: .35; }
@@ -939,6 +958,13 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
   var saved = null;
   try { saved = localStorage.getItem("view"); } catch (e) {}
   view = VIEWS.indexOf(saved) >= 0 ? saved : "month";
+  // index.html#YYYY-MM-DD opens that day (links from the Fitness tab)
+  function fromHash() {
+    var h = location.hash.slice(1);
+    if (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(h)) { view = "day"; sel = h; return true; }
+  }
+  fromHash();
+  window.addEventListener("hashchange", function () { if (fromHash()) { render(); window.scrollTo(0, 0); } });
   render();
 })();
 </script>
