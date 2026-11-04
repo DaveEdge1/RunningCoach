@@ -1074,8 +1074,7 @@ def build(plan, built):
               + (f'Estimates are scaled (× {hcal["k"]:.3f}) so the trend line passes through {cal_names}. '
                  if hcal else 'No race or time trial with steady laps yet, so estimates are uncalibrated. ')
               + f'The dashed line is the trend over the last {2 * HRFIT_DAYS} days: a Theil–Sen line (the median of pairwise slopes, '
-              'Sen 1968, so one odd run can\'t tip it) through the estimates; its rate is in the legend, next to the rate the goal needs '
-              'on the dotted line.</p>' + p_hrfit + p_vdot)
+              'Sen 1968, so one odd run can\'t tip it) through the estimates; its rate is in the legend.</p>' + p_hrfit + p_vdot)
         + '\n</section>')
 
     pfrom = min(prior_miles(date.max), default=first)
@@ -1656,10 +1655,8 @@ footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
     el("line", { x1: f.m.l, x2: f.W - f.m.r, y1: f.Y(G.v), y2: f.Y(G.v), stroke: "var(--s2)", "stroke-width": 2 }, f.svg);
     el("text", { "class": "lbl", x: f.m.l + 6, y: f.Y(G.v) - 6 }, f.svg).textContent = "Goal " + G.t + " · " + G.v.toFixed(1);
     if (G.basis) {
-      var bx = day(G.basis.d) + .5, rx = day(G.race) + .5, need = (G.v - G.basis.v) / (rx - bx) * 365.25 / 12;
+      var bx = day(G.basis.d) + .5, rx = day(G.race) + .5;
       el("line", { x1: f.X(bx), y1: f.Y(G.basis.v), x2: f.X(rx), y2: f.Y(G.v), stroke: "var(--s2)", "stroke-width": 2, "stroke-dasharray": "2 4", "stroke-linecap": "round" }, f.svg);
-      el("text", { "class": "lbl", x: f.X(rx) - 10, y: f.Y(G.v) - 22, "text-anchor": "end" }, f.svg).textContent =
-        "Needed " + (need >= 0 ? "+" : "") + need.toFixed(1) + " VDOT/mo";
       if (G.tt) {
         var tx = day(G.tt.d) + .5, tv = G.basis.v + (G.v - G.basis.v) * (tx - bx) / (rx - bx);
         var c = el("circle", { cx: f.X(tx), cy: f.Y(tv), r: 4, fill: "var(--card)", stroke: "var(--s2)", "stroke-width": 2 }, f.svg);
