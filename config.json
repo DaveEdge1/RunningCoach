@@ -64,8 +64,7 @@
     "min_minutes": 4,
     "aet_margin_bpm": 3,
     "max_speed_cv_pct": 10,
-    "rolling_days": 28,
-    "calibration_races": 3
+    "rolling_days": 28
   },
   "workouts": {
     "pace_tolerance_s_per_mi": 5,

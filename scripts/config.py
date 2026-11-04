@@ -66,7 +66,6 @@ HRFIT_MIN_S = _cfg["hr_fitness"]["min_minutes"] * 60
 HRFIT_HR_MAX = AET + _cfg["hr_fitness"]["aet_margin_bpm"]
 HRFIT_MAX_CV = _cfg["hr_fitness"]["max_speed_cv_pct"] / 100
 HRFIT_DAYS = _cfg["hr_fitness"]["rolling_days"]
-HRFIT_CAL_RACES = _cfg["hr_fitness"]["calibration_races"]
 
 # Workout reps
 REP_PACE_TOL = _cfg["workouts"]["pace_tolerance_s_per_mi"]

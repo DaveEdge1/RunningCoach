@@ -10,7 +10,7 @@ from analyze import EF_HR_BAND, EF_MIN_SECS
 from build_site import BASE_CSS, tabs
 from config import (ACUTE_DAYS, ACWR_DANGER, ACWR_SWEET, AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CHRONIC_DAYS,
                     CROSS_DEFAULT_RATE, CROSS_NAMES, DANIELS_FLOOR_FT, DANIELS_SPM, HARD_BOUT,
-                    HRFIT_CAL_RACES, HRFIT_DAYS, HRFIT_HR_MAX, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MAX_HR, RACE_WHOLE_RUN_TOL, REST_HR,
+                    HRFIT_DAYS, HRFIT_HR_MAX, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MAX_HR, RACE_WHOLE_RUN_TOL, REST_HR,
                     HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, RECOVERY_KM_PER_DAY, REP_MIN_S, REP_PACE_TOL, ROOT,
                     HR_CEIL, HR_CEIL_PCT, THRESH_HR,
                     WORKOUT_Z5_PCT, ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race,
@@ -423,10 +423,14 @@ def hr_fitness(runs, rc, meters):
     HRFIT_HR_MAX (AeT + aet_margin_bpm); trail runs are left out. Above AeT HR and VO2 keep rising for 10-20 minutes
     (the slow component), so a rep's average HR understates its cost and reads high, and a race's drifts up and
     reads low. The population HR-VO2 relation doesn't
-    fit any one runner exactly, so every estimate is scaled by k, the median over the last HRFIT_CAL_RACES races or
-    time trials (not on trail days) of the factor that puts the median of the runs within HRFIT_DAYS / 2 of the race on its sea-level
-    VDOT (clock time, as plotted; grade-adjusted until 2026-11-04, which left the estimates above the race dot). Each run goes on the sea-level scale the way a race does:
-    VDOT -> time at `meters` at the run's elevation -> sea-level VDOT.
+    fit any one runner exactly, so every estimate is scaled by k, the factor that puts the trend line (hr_slope over the
+    last 2 x HRFIT_DAYS days, the line the chart draws) on the latest race or time trial's sea-level VDOT (clock time,
+    as plotted) on its date. David's choice (2026-11-04): the latest race is the best measure of current fitness, so the
+    trend should pass through it. Races on trail days don't count (rough footing reads slow). Until 2026-11-04 k matched
+    the median of the runs within HRFIT_DAYS / 2 of each of the last 3 races, which rested on few runs and left the
+    trend well above the time trial. Without a trend (under 4 runs), it falls back to that median for the latest race.
+    Each run goes on the sea-level scale the way a race does: VDOT -> time at `meters` at the run's elevation ->
+    sea-level VDOT.
     Returns (points, calibration or None)."""
     path = ROOT / "data" / "segments.csv"
     if not path.exists():
@@ -450,20 +454,30 @@ def hr_fitness(runs, rc, meters):
     half = timedelta(HRFIT_DAYS / 2)
     sl_at = lambda p, k: sl_vdot(meters, predict(k * p["raw"], meters), p["elev"])
 
-    def race_k(r):  # bisection: sl_at rises with k
+    def trend_at(r, k):  # the drawn trend line's value on the race date, with every estimate scaled by k
+        for p in pts:
+            p["sl"] = sl_at(p, k)
+        t = hr_slope(pts, 2 * HRFIT_DAYS)
+        return None if t is None else t[2] + t[3] * (r["d"] - t[0]).days
+
+    def window_median(r, k):
         win = [p for p in pts if abs(p["d"] - r["d"]) <= half and (p["d"], p["start"]) != (r["d"], r["start"])]
-        if len(win) < 3:
+        return statistics.median(sl_at(p, k) for p in win) if len(win) >= 3 else None
+
+    def race_k(r):  # bisection: the estimates (and so the trend) rise with k
+        level = trend_at if trend_at(r, 1.0) is not None else window_median
+        if level(r, 1.0) is None:
             return None
-        # clock time, the same sea-level VDOT the chart and every page show for the race
-        target, lo, hi = sl_vdot(r["meters"], r["secs"], src_elev(r)), 0.5, 2.0
+        target, lo, hi = sl_vdot(r["meters"], r["secs"], src_elev(r)), 0.5, 2.0  # clock time, as every page shows
         for _ in range(30):
             mid = (lo + hi) / 2
-            lo, hi = (mid, hi) if statistics.median(sl_at(p, mid) for p in win) < target else (lo, mid)
+            lo, hi = (mid, hi) if level(r, mid) < target else (lo, mid)
         return (lo + hi) / 2
 
-    # a race on rough footing (a "trail" note) reads slow for its fitness, so it doesn't set the calibration
-    cal = [(r, c) for r in rc if r["d"].isoformat() not in trails and (c := race_k(r)) is not None][-HRFIT_CAL_RACES:]
-    k = statistics.median(c for _, c in cal) if cal else 1.0
+    # the latest race or time trial, not on rough footing (a "trail" note reads slow for its fitness)
+    latest = [r for r in rc if r["d"].isoformat() not in trails][-1:]
+    cal = [(r, c) for r in latest if (c := race_k(r)) is not None]
+    k = cal[0][1] if cal else 1.0
     for p in pts:
         p["v"] = k * p["raw"]
         p["sl"] = sl_at(p, k)
@@ -757,10 +771,11 @@ def build(plan, built):
                f"{HRFIT_MAX_CV:.0%} (no strides or surges). Trail runs are left out, and so is any lap averaging over {HRFIT_HR_MAX} bpm "
                f"(AeT {AET} plus a little sensor noise): above AeT HR and VO2 keep rising for 10–20 minutes (the slow component; Poole &amp; Jones 2012, "
                "Compr Physiol 2:933), so a rep's average HR understates its cost and reads high, while a race's drifts up and "
-               "reads low. A population formula doesn't fit one runner exactly, so estimates are scaled so that the median of "
-               f"the runs within {HRFIT_DAYS // 2} days of each of your last {HRFIT_CAL_RACES} races or time trials matches its "
-               "result (Runalyze calibrates its effective VO2max the same way; a race marked trail in notes.md doesn't count, "
-               "since rough footing makes it read slow), then converted to sea level like a race. Single runs scatter by a point "
+               "reads low. A population formula doesn't fit one runner exactly, so every estimate is scaled by one factor, "
+               f"chosen so the trend line (last {2 * HRFIT_DAYS} days) passes through your latest race or time trial: the "
+               "most direct measure of current fitness (Runalyze likewise scales its effective VO2max to race results; a race "
+               "marked trail in notes.md doesn't count, since rough footing makes it read slow). Estimates are converted to "
+               "sea level like a race. Single runs scatter by a point "
                "or two (sleep, fatigue, a few beats of sensor error), so read the trend, not one dot.</p>")
 
     # Today: what's coming up, each line linking to its day on the calendar
@@ -1032,7 +1047,8 @@ def build(plan, built):
                            "name": r["name"], "t": hms(r["secs"])} for r in rc],
                 "hr": [{"d": p["d"].isoformat(), "v": round(p["sl"], 2), "gap": mmss(p["gap"]), "hr": round(p["hr"]),
                         "min": round(p["secs"] / 60), "laps": p["laps"], "race": p["race"]} for p in hpts],
-                "slope": {"d0": sl_[0].isoformat(), "d1": sl_[1].isoformat(), "v0": round(sl_[2], 2),
+                # drawn on to the calibrating race, which it passes through, when that comes after the last estimate
+                "slope": {"d0": sl_[0].isoformat(), "d1": max([sl_[1]] + [r["d"] for r in hcal["races"] if hcal]).isoformat(), "v0": round(sl_[2], 2),
                           "perMo": round(sl_[3] * DAYS_PER_MO, 2), "days": 2 * HRFIT_DAYS}
                 if (sl_ := hr_slope(hpts, 2 * HRFIT_DAYS)) else None,
                 "basis": {"d": best["d"].isoformat(), "v": round(sl_vdot(best["meters"], best["secs"], src_elev(best)), 2)}
@@ -1055,7 +1071,7 @@ def build(plan, built):
               'the same path the checkpoint uses. Races and time trials are measured results. Between them, each small dot '
               'is an HR-based estimate from one run\'s steady laps at or near AeT (pace and HR together, so it needs no '
               'all-out effort; reps and races are left out, since HR lags pace above AeT). '
-              + (f'Estimates are calibrated to {cal_names} (× {hcal["k"]:.3f}), so they match race results on average; a second race or time trial will firm that up. '
+              + (f'Estimates are scaled (× {hcal["k"]:.3f}) so the trend line passes through {cal_names}. '
                  if hcal else 'No race or time trial with steady laps yet, so estimates are uncalibrated. ')
               + f'The dashed line is the trend over the last {2 * HRFIT_DAYS} days: a Theil–Sen line (the median of pairwise slopes, '
               'Sen 1968, so one odd run can\'t tip it) through the estimates; its rate is in the legend, next to the rate the goal needs '
