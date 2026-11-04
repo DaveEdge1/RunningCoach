@@ -29,7 +29,7 @@ Weeks 2–4 built 38 → 39.5; week 4 lands near 34 (a rest day before the time 
 |---|---|---|---|---|
 | 1 | Oct 12–18 | 32 | Race recovery: easy only | Sat 9 |
 | 2 | Oct 19–25 | 38 | Tue 4 × 7 min threshold · Thu off · Sat away | Fri 9 · Sun 9 |
-| 3 | Oct 26–Nov 1 | 39.5 | Tue 5K time trial **abandoned** (out at 6:52/mi, stopped twice; not scored) | Sat 11 |
+| 3 | Oct 26–Nov 1 | 34.5 | Tue 5K time trial **abandoned** (out at 6:52/mi, stopped twice; not scored) · Thu off | Sat 11 |
 | 4 | Nov 2–8 | ~34 | Mon off (rest) · Tue **5K time trial ✅ 22:12** at 7,140 ft (7:04 grade-adjusted; sea-level VDOT 46.4, up from 44.6) · Thu 5 easy · Sat easy, no sprints, before the canyon descent | Fri 11 (10–12) |
 | 5 | Nov 9–15 | 26 · **cut-back** | **Grand Canyon** (Sun Nov 8–Tue Nov 10): ~4 h down Tanner, 6 h up New Hance, 35-lb pack · Wed off · Thu 5 easy · run by feel while quads recover | Sat 9 |
 | 6 | Nov 16–22 | 42 | Tue 5 × 1 km at interval pace · Thu off · Sat off (drive) | Fri 13, last 2 steady |
