@@ -425,7 +425,7 @@ def hr_fitness(runs, rc, meters):
     reads low. The population HR-VO2 relation doesn't
     fit any one runner exactly, so every estimate is scaled by k, the median over the last HRFIT_CAL_RACES races or
     time trials (not on trail days) of the factor that puts the median of the runs within HRFIT_DAYS / 2 of the race on its sea-level
-    VDOT (grade-adjusted). Each run goes on the sea-level scale the way a race does:
+    VDOT (clock time, as plotted; grade-adjusted until 2026-11-04, which left the estimates above the race dot). Each run goes on the sea-level scale the way a race does:
     VDOT -> time at `meters` at the run's elevation -> sea-level VDOT.
     Returns (points, calibration or None)."""
     path = ROOT / "data" / "segments.csv"
@@ -454,7 +454,8 @@ def hr_fitness(runs, rc, meters):
         win = [p for p in pts if abs(p["d"] - r["d"]) <= half and (p["d"], p["start"]) != (r["d"], r["start"])]
         if len(win) < 3:
             return None
-        target, lo, hi = sl_vdot(r["meters"], r["gap"], src_elev(r)), 0.5, 2.0
+        # clock time, the same sea-level VDOT the chart and every page show for the race
+        target, lo, hi = sl_vdot(r["meters"], r["secs"], src_elev(r)), 0.5, 2.0
         for _ in range(30):
             mid = (lo + hi) / 2
             lo, hi = (mid, hi) if statistics.median(sl_at(p, mid) for p in win) < target else (lo, mid)
