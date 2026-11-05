@@ -8,10 +8,10 @@ from pathlib import Path
 
 from analyze import EF_HR_BAND, EF_MIN_SECS
 from build_site import BASE_CSS, tabs
-from config import (ACUTE_DAYS, ACWR_DANGER, ACWR_SWEET, AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CHRONIC_DAYS,
+from config import (_cfg, ACUTE_DAYS, ACWR_DANGER, ACWR_SWEET, AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CHRONIC_DAYS,
                     CROSS_DEFAULT_RATE, CROSS_NAMES, DANIELS_FLOOR_FT, DANIELS_SPM, HARD_BOUT,
                     HRFIT_DAYS, HRFIT_HR_MAX, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MAX_HR, RACE_WHOLE_RUN_TOL, REST_HR,
-                    HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, RECOVERY_KM_PER_DAY, REP_MIN_S, REP_PACE_TOL, ROOT,
+                    BENCH_HR_SKIP_S, BENCH_TOL, HOME_ELEV_FT, HOME_NAME, LT, MANUAL_LOAD_PER_MIN, RECOVERY_KM_PER_DAY, REP_MIN_S, REP_PACE_TOL, ROOT,
                     HR_CEIL, HR_CEIL_PCT, THRESH_HR,
                     WORKOUT_Z5_PCT, ZONE_NAMES as ZONE_COLS, ZONES, convert_range, convert_time, load_races, next_race,
                     cross_kind, recovery_days, trail_days, zone_anchors, zone_range)
@@ -74,6 +74,60 @@ def load_runs():
         return list(csv.DictReader(f))
 
 
+def load_bench():
+    """Passes through the trail benchmarks (data/benchmarks.csv, from analyze.py), each with its time scaled to AeT
+    HR: at a fixed grade the energy cost per metre is constant (Minetti et al. 2002), so net VO2 is proportional to
+    speed, and %VO2 reserve tracks %HR reserve (Swain & Leutholtz 1997); so time x (HR - rest) / (AeT - rest)."""
+    path = ROOT / "data" / "benchmarks.csv"
+    if not path.exists():
+        return []
+    out = []
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            secs, hr = int(r["secs"]), int(r["avg_hr"]) if r["avg_hr"] else None
+            out.append({"d": r["date"], "n": r["name"], "t": secs, "mi": float(r["miles"]), "hr": hr,
+                        "adj": round(secs * (hr - REST_HR) / (AET - REST_HR)) if hr and hr > REST_HR else None,
+                        "climb": int(r["climb_ft"] or 0), "net": int(r["net_elev_ft"]) if r["net_elev_ft"] else None})
+    return out
+
+
+def signed_ft(x):
+    return "" if x is None else f"{x:+,}".replace("-", "−")
+
+
+def bench_html(bench):
+    if not bench:
+        return ""
+    names = list(dict.fromkeys(b["n"] for b in sorted(bench, key=lambda b: b["n"], reverse=True)))  # "up" before "down"
+    rows = "".join(
+        f"<tr><td>{date.fromisoformat(b['d']):%b} {date.fromisoformat(b['d']).day}</td><td>{html.escape(b['n'])}</td>"
+        f"<td>{mmss(b['t'])}</td><td class=opt>{mmss(b['t'] / b['mi'])}/mi</td><td>{b['hr'] or '–'}</td>"
+        f"<td>{mmss(b['adj']) if b['adj'] else '–'}</td><td class=opt>{signed_ft(b['net'])}</td></tr>"
+        for b in sorted(bench, key=lambda b: (b["d"], b["n"]), reverse=True))
+    leg = "".join(f'<span><span class="dt" style="background:var(--s{1 if i == 0 else 2})"></span>{html.escape(n)}</span>'
+                  for i, n in enumerate(names))
+    return (
+        '<section class="card"><h2>Trail benchmark: Schultz</h2>\n'
+        f'<p class="note">Each time a run passes through a benchmark section, its time scaled to {AET} bpm. Faster is up.</p>\n'
+        '<div class="chart" id="cBench"></div>\n'
+        f'<div class="legend">{leg}</div>\n'
+        '<div class="scroll"><table class="t full"><thead><tr><th>Date</th><th>Section</th><th>Time</th>'
+        f'<th class=opt>Pace</th><th>Avg HR</th><th>At {AET} bpm</th><th class=opt>Net elev. (ft)</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table></div>\n'
+        + how(f"<p>The sections are fixed GPS start and end points in config.json (benchmarks): about {bench[0]['mi']:.2f} mi of the "
+              "upper Schultz trail, timed in each direction separately, so a run can include either one. A pass counts from "
+              "the start point to the next arrival at the end point, if its distance is within "
+              f"{round(BENCH_TOL * 100)}% of the section's (no detours). Average HR leaves out the first {BENCH_HR_SKIP_S} s, "
+              "while HR catches up with the change of grade.</p>"
+              f"<p><b>At {AET} bpm</b> scales each time to the same effort, your AeT: on a fixed grade the energy cost per "
+              "metre is constant (Minetti et al. 2002), so the oxygen used above rest rises in proportion to speed, and the "
+              "share of oxygen reserve tracks the share of HR reserve (Swain &amp; Leutholtz 1997). So time × (HR − "
+              f"{REST_HR}) ÷ ({AET} − {REST_HR}): a pass 5 bpm above AeT is credited about 5%. It works best on passes "
+              "run steadily near AeT; it reads slow when you're tired (the day after a workout), hot, or on snow or mud, and "
+              "fast when HR reads low (the arm strap). Same trail each time, so footing and grade cancel out, which "
+              "grade-adjusted pace can't do for a trail.</p>") + '\n</section>')
+
+
 def load_hr_hist():
     """{(date, start): {bpm: seconds}} from data/hr_hist.csv."""
     path = ROOT / "data" / "hr_hist.csv"
@@ -110,6 +164,12 @@ def prior_miles(first):
     return out
 
 
+def run_secs(r):
+    """Moving time from distance x pace, so runs without HR (manual runs) count too."""
+    m, sec = r["pace"].split(":")
+    return float(r["miles"]) * (int(m) * 60 + int(sec))
+
+
 def recorded_week_miles(runs, wk0):
     return sum(float(r["miles"]) for r in runs if 0 <= (date.fromisoformat(r["date"]) - wk0).days < 7)
 
@@ -124,11 +184,15 @@ def series(runs, end, planned=None, cross=()):
     miles = {d: 0.0 for d in days}
     load = {d: 0.0 for d in days}
     xload = {d: 0.0 for d in days}
+    mins = {d: 0.0 for d in days}  # running minutes and climbing (ft), recorded runs only
+    climb = {d: 0.0 for d in days}
     for r in runs:
         d = date.fromisoformat(r["date"])
         if d in miles:
             miles[d] += float(r["miles"])
             load[d] += float(r["load"] or 0)
+            mins[d] += run_secs(r) / 60
+            climb[d] += float(r["elev_ft"] or 0)
     for c in cross:
         d = date.fromisoformat(c["date"])
         if d in miles:
@@ -159,6 +223,7 @@ def series(runs, end, planned=None, cross=()):
         r28 = sum(miles[days[j]] for j in range(max(0, i - 27), i + 1)) / 4
         r84 = (sum(miles[days[j]] for j in range(max(0, i - 83), i + 1))
                + sum(v for k, v in prior.items() if (d - k).days < 84)) / 12
+        roll = lambda v, n: sum(v[days[j]] for j in range(max(0, i - n + 1), i + 1)) * 7 / n
         acute = sum(load[days[j]] for j in range(max(0, i - ACUTE_DAYS + 1), i + 1))
         chronic = sum(load[days[j]] for j in range(max(0, i - CHRONIC_DAYS + 1), i + 1)) * ACUTE_DAYS / CHRONIC_DAYS
         out.append({"d": d.isoformat(), "mi": round(miles[d], 2), "load": round(load[d]), "xload": round(xload[d]),
@@ -167,6 +232,9 @@ def series(runs, end, planned=None, cross=()):
                     "r28": round(r28, 1) if i >= 27 else None,
                     "r84": round(r84, 1) if (d - covered).days >= 83 else None,
                     "acwr": round(acute / chronic, 2) if i >= CHRONIC_DAYS - 1 and chronic else None,
+                    "min": round(mins[d]), "ft": round(climb[d]),
+                    "m28": round(roll(mins, 28)) if i >= 27 else None, "m84": round(roll(mins, 84)) if i >= 83 else None,
+                    "f28": round(roll(climb, 28)) if i >= 27 else None, "f84": round(roll(climb, 84)) if i >= 83 else None,
                     "plan": d in planned})
     return out
 
@@ -258,7 +326,7 @@ def efficiency(runs, daily, rc):
 
 def weekly(runs, daily, cross=()):
     weeks = {}
-    new = lambda: {"mi": 0.0, "runs": 0, "hr": 0, "z": [0.0] * 5, "load": 0, "xh": 0.0, "hh": {}, "secs": 0.0}
+    new = lambda: {"mi": 0.0, "runs": 0, "hr": 0, "z": [0.0] * 5, "load": 0, "xh": 0.0, "hh": {}, "secs": 0.0, "ft": 0.0}
     hists = load_hr_hist()
     for c in cross:
         d = date.fromisoformat(c["date"])
@@ -269,8 +337,8 @@ def weekly(runs, daily, cross=()):
         d = date.fromisoformat(r["date"])
         w = weeks.setdefault(d - timedelta(d.weekday()), new())
         w["mi"] += float(r["miles"])
-        m, sec = r["pace"].split(":")  # moving time from distance x pace: counts runs without HR (manual runs) too
-        w["secs"] += float(r["miles"]) * (int(m) * 60 + int(sec))
+        w["secs"] += run_secs(r)
+        w["ft"] += float(r["elev_ft"] or 0)
         w["runs"] += 1
         w["load"] += float(r["load"] or 0)
         if r["hr_secs"]:
@@ -288,6 +356,7 @@ def weekly(runs, daily, cross=()):
         out.append({"w": wk0.isoformat(), "mi": round(w["mi"], 1), "runs": w["runs"], "load": round(w["load"]),
                     "xh": round(w["xh"], 1),
                     "hrH": round(w["hr"] / 3600, 1), "runH": round(w["secs"] / 3600, 1),
+                    "min": round(w["secs"] / 60), "ft": round(w["ft"]),
                     "z": [round(100 * z / w["hr"]) if w["hr"] else 0 for z in w["z"]],
                     "hh": [[b, w["hh"][b]] for b in sorted(w["hh"])],  # seconds at each bpm, runs only
                     "ctl": x.get("ctl"), "atl": x.get("atl"), "partial": end < wk0 + timedelta(6)})
@@ -601,6 +670,30 @@ def basis_phrase(b):
     return f'your most recent race or time trial ({html.escape(b["name"])}, {when})'
 
 
+def hmm(minutes):
+    m = round(minutes)
+    return f"{m // 60}h {m % 60:02d}m"
+
+
+def year_goal(daily, today):
+    """Tile for the year's running-time goal (config.json goals.annual_minutes): before the year, the weekly
+    average it takes against the last 28 days; during it, minutes so far against an even pace."""
+    goals = {int(y): g for y, g in _cfg.get("goals", {}).get("annual_minutes", {}).items()}
+    year = min((y for y in goals if y >= today.year), default=None)
+    if year is None:
+        return None
+    goal, jan1, dec31 = goals[year], date(year, 1, 1), date(year, 12, 31)
+    per_wk = goal * 7 / ((dec31 - jan1).days + 1)
+    r28 = sum(x["min"] for x in daily[-28:]) / 4
+    if today < jan1:
+        return (f"{goal:,} min in {year}", f"{per_wk:.0f} min/wk",
+                f"{hmm(per_wk)} a week on average; last 28 days: {r28:.0f} min/wk")
+    done = sum(x["min"] for x in daily if x["d"] >= jan1.isoformat())
+    even = goal * ((today - jan1).days + 1) / ((dec31 - jan1).days + 1)
+    return (f"{year} running time", f"{done:,.0f} min", f"{100 * done / goal:.0f}% of {goal:,}",
+            signed(done - even, "{:,.0f}") + " min vs. even pace")
+
+
 def tile(label, value, sub="", delta=""):
     return (f'<div class="tile"><div class="tl">{label}</div><div class="tv">{value}</div>'
             f'{f"<div class=td>{delta}</div>" if delta else ""}'
@@ -657,6 +750,8 @@ def build(plan, built):
     rc = races(runs, plan)
     pts, trend = efficiency(runs, daily, rc)
     weeks = weekly(runs, daily, cross)
+    bench = load_bench()
+    bench_card = bench_html(bench)
     efforts = load_efforts(runs, rc)
     nr = next_race(today)
     now, ago = daily[-1], daily[-29] if len(daily) > 28 else None
@@ -673,17 +768,23 @@ def build(plan, built):
             x["s"] = p["session"] if p else ""
 
     # tiles
-    prev28 = sum(x["mi"] for x in daily[-56:-28]) / 4 if len(daily) >= 56 else None
     t_now = trend[-1]["p"] if trend else None
     # latest trend value on or before that day: the window leaves gaps where fewer than TREND_MIN_RUNS qualify
     t_ago = next((t["p"] for t in reversed(trend) if t["d"] <= ago["d"]), None) if ago and trend else None
     fp = now["formPct"]
     form_word = "fresh" if fp > FRESH else "carrying fatigue" if fp < TIRED else "neutral"
+    last = lambda k, n: sum(x[k] for x in daily[-n:])
+    prev28m = last("min", 56) - last("min", 28) if len(daily) >= 56 else None
     volume = [
-        tile("Last 7 days", f"{now['r7']:.1f} mi"),
-        tile("28-day average", f"{now['r28']:.1f} mi/wk",
-             delta=(signed(now["r28"] - prev28) + " vs. previous 28 days") if prev28 else ""),
+        tile("Last 7 days", hmm(last("min", 7)), f"{now['r7']:.1f} mi · {last('ft', 7):,} ft climbing"),
+        tile("28-day average", f"{hmm(last('min', 28) / 4)}/wk",
+             f"{now['r28']:.1f} mi · {last('ft', 28) / 4:,.0f} ft a week" if now["r28"] is not None else "",
+             (signed((last("min", 28) - prev28m) / 4, "{:.0f}") + " min/wk vs. previous 28 days") if prev28m is not None else ""),
+        tile("Days run", f"{sum(1 for x in daily[-28:] if x['min'] > 0)} of 28", "in the last 28 days"),
     ]
+    yg = year_goal(daily, today)
+    if yg:
+        volume.append(tile(*yg))
     load_t = [
         tile("Long-term load", f"{now['ctl']:.0f}", f"{CTL_DAYS}-day average",
              (signed(now["ctl"] - ago["ctl"], "{:.0f}") + " vs. 4 weeks ago") if ago else ""),
@@ -705,7 +806,7 @@ def build(plan, built):
         fit_t.append(tile("VDOT (sea level)", f"{sl_vdot(best['meters'], best['secs'], src_elev(best)):.1f}",
                           f"{html.escape(best['name'])}, {best['d']:%b} {best['d'].day}, at {ft(src_elev(best))}"))
     tiles = [f'<div class="tgroup"><div class="tgh">{name}</div><div class="tiles">{"".join(ts)}</div></div>'
-             for name, ts in (("Volume", volume), ("Load", load_t), ("Fitness", fit_t)) if ts]
+             for name, ts in (("Time on feet", volume), ("Load", load_t), ("Fitness", fit_t)) if ts]
 
     spm = "–".join(f"{k:g}" for k in DANIELS_SPM)
     first = date.fromisoformat(daily[0]["d"])
@@ -1079,16 +1180,22 @@ def build(plan, built):
 
     pfrom = min(prior_miles(date.max), default=first)
     miles_html = (
-        '<section class="card"><h2>Mileage</h2>\n'
-        '<p class="note">Mon–Sun totals with 28-day and 12-week averages (mi/wk).</p>\n'
+        '<section class="card"><h2>Volume</h2>\n'
+        '<div class="seg vol" id="volUnit"><button data-u="time">Time</button><button data-u="miles">Miles</button>'
+        '<button data-u="climb">Climbing</button></div>\n'
+        '<p class="note">Mon–Sun totals with 28-day and 12-week averages per week.</p>\n'
         '<div class="chart" id="cMiles"></div>\n'
-        '<div class="legend"><span><i style="background:var(--s1)"></i>Weekly miles</span>'
+        '<div class="legend"><span><i style="background:var(--s1)"></i>Weekly total</span>'
         '<span><span class="ln" style="background:var(--s2)"></span>28-day average</span>'
         '<span><span class="ln" style="background:var(--s7)"></span>12-week average</span></div>\n'
-        + how("<p>Bars are Monday–Sunday totals; the current week is lighter until it ends. The lines are rolling "
-              "averages in miles per week over the last 28 days and 12 weeks. The 12-week average is the slower layer: "
-              "aerobic base built over months. It includes the weekly totals from before the recorded data "
-              f"(data/prior_weeks.csv, from {pfrom:%b} {pfrom.day}).</p>") + '\n</section>')
+        + how("<p>Bars are Monday–Sunday totals of running only (hikes and skis add load, not volume); the current week "
+              "is lighter until it ends. The lines are rolling averages per week over the last 28 days and 12 weeks. "
+              "The 12-week average is the slower layer: aerobic base built over months.</p>"
+              "<p><b>Time</b> is moving time (distance × average pace), so it counts runs without HR, and a trail mile "
+              "counts for the time it takes. <b>Climbing</b> is the watch's total ascent (barometer). "
+              "The 12-week mileage average includes the weekly totals from before the recorded data "
+              f"(data/prior_weeks.csv, from {pfrom:%b} {pfrom.day}); time and climbing weren't reported for those weeks, "
+              "so their 12-week averages start 12 weeks into the recorded data.</p>") + '\n</section>')
     eff_chart_html = (
         f'<section class="card"><h2>Aerobic efficiency: pace at {AET} bpm, at {HOME_ELEV_FT:,} ft</h2>\n'
         '<p class="note">Grade-adjusted easy running near AeT. Faster is up.</p>\n'
@@ -1117,11 +1224,11 @@ def build(plan, built):
             "aet": AET, "lt": LT, "zanc": [round(a, 1) for a in zone_anchors()], "zones": [f"{n} {zone_range(lo, hi)}" for n, lo, hi in ZONES],
             "breaks": [1, 3],  # zone indexes below the LT1 (AeT) and LT2 (LT) boundaries
             "proj": [{k: x[k] for k in ("d", "ctl", "atl", "formPct", "acwr", "plan", "load", "xload", "s")} for x in proj],
-            "acwrSweet": ACWR_SWEET, "acwrDanger": ACWR_DANGER, "goal": goal}
+            "acwrSweet": ACWR_SWEET, "acwrDanger": ACWR_DANGER, "goal": goal, "bench": bench}
     sections = {
         "today": tiles_html + coming_html,
         "training": miles_html + load_html + zones_html,
-        "fitness": goal_html + eff_chart_html + eff_html + races_html,
+        "fitness": bench_card + goal_html + eff_chart_html + eff_html + races_html,
         "race": next_html + race_html,
     }
     subs = {"BASE_CSS": BASE_CSS, "TABS": tabs("fitness.html"), "DATA": json.dumps(data, separators=(",", ":")),
@@ -1207,11 +1314,12 @@ TEMPLATE = """<!doctype html>
 <title>Running Fitness</title>
 <style>
 %%BASE_CSS%%
-.tgroups { display: grid; grid-template-columns: 2fr 3fr 2fr; gap: 10px 14px; margin: 0 0 18px; }
+.tgroups { display: grid; grid-template-columns: 3fr 2fr; gap: 10px 14px; margin: 0 0 18px; }
+.tgroup:first-child { grid-column: 1 / -1; }  /* time on feet: its own row, first */
 .tgh { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 5px 2px; }
 .tiles { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; height: calc(100% - 22px); }
 @media (max-width: 960px) { .tgroups { grid-template-columns: 1fr; } .tiles { height: auto; } }
-@media (max-width: 420px) { .tiles { grid-auto-flow: row; grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .tiles { grid-auto-flow: row; grid-template-columns: 1fr 1fr; } }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
 .tl { font-size: 12px; color: var(--muted); }
 .tv { font-size: 26px; font-weight: 600; margin-top: 2px; letter-spacing: -0.01em; }
@@ -1242,6 +1350,11 @@ TEMPLATE = """<!doctype html>
 .range .seg { display: inline-flex; } .range .seg button { border-radius: 0; margin-left: -1px; }
 .range .seg button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; } .range .seg button:last-child { border-radius: 0 6px 6px 0; }
 .range .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.seg.vol { display: inline-flex; margin: 4px 0 6px; }
+.seg.vol button { font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 1px solid var(--line);
+  border-radius: 0; margin-left: -1px; padding: 0 12px; min-height: 32px; cursor: pointer; }
+.seg.vol button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; } .seg.vol button:last-child { border-radius: 0 6px 6px 0; }
+.seg.vol button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 #rLabel { min-width: 120px; text-align: center; font-variant-numeric: tabular-nums; font-size: 13px; }
 .chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .chart.short { height: 150px; } .chart.tall { height: 320px; }
@@ -1445,19 +1558,38 @@ footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
   }
   function fmtDay(d) { var t = new Date(d * 864e5); return MON[t.getUTCMonth()] + " " + t.getUTCDate(); }
 
+  // volume chart: time (default; a trail mile takes longer), miles or climbing
+  var VOL = {
+    time: { w: "min", a: "m28", b: "m84", sc: 1 / 60, step: 1, fmt: function (v) { return v + " h"; },
+            tip: function (v) { return Math.floor(v / 60) + ":" + String(Math.round(v % 60)).padStart(2, "0"); }, u: " h:mm" },
+    miles: { w: "mi", a: "r28", b: "r84", sc: 1, step: 10, fmt: function (v) { return v; }, tip: function (v) { return v; }, u: " mi" },
+    climb: { w: "ft", a: "f28", b: "f84", sc: 1, step: 500, fmt: function (v) { return v ? (v / 1000) + "k" : 0; },
+             tip: function (v) { return Math.round(v).toLocaleString("en-US"); }, u: " ft" }
+  };
+  var unit = "time";
+  try { unit = localStorage.getItem("volUnit") || unit; } catch (e) {}
+  function setUnit() {
+    Array.prototype.forEach.call(document.querySelectorAll("#volUnit button"), function (b) {
+      b.setAttribute("aria-pressed", b.dataset.u === unit ? "true" : "false");
+      b.onclick = function () { unit = b.dataset.u; try { localStorage.setItem("volUnit", unit); } catch (e) {} setUnit(); if (vis("cMiles")) miles(); };
+    });
+  }
+  setUnit();
   function miles() {
-    var mx = Math.max.apply(null, D.weeks.map(function (w) { return w.mi; }).concat(D.daily.map(function (x) { return Math.max(x.r28 || 0, x.r84 || 0); })));
-    var top = Math.ceil(mx / 10) * 10, ticks = []; for (var v = 0; v <= top; v += 10) ticks.push(v);
+    var U = VOL[unit] || VOL.time, sc = U.sc;
+    var mx = Math.max.apply(null, D.weeks.map(function (w) { return w[U.w] * sc; }).concat(D.daily.map(function (x) { return Math.max(x[U.a] || 0, x[U.b] || 0) * sc; })));
+    var st = U.step; while (mx / st > 8) st *= 2;
+    var top = Math.max(st, Math.ceil(mx / st) * st), ticks = []; for (var v = 0; v <= top; v += st) ticks.push(v);
     // at the latest date, pad right so the current (partial) week bar, drawn mid-week, stays visible
-    var f = frame("cMiles", x0, x1 + (x1 >= LAST ? 4 : 0), 0, top, ticks, function (v) { return v; });
+    var f = frame("cMiles", x0, x1 + (x1 >= LAST ? 4 : 0), 0, top, ticks, U.fmt);
     monthTicks(f, x0, x1);
     var band = f.X(7) - f.X(0), bw = Math.min(24, band - 6);
     D.weeks.forEach(function (w) {
       var cx = f.X(day(w.w) + 3.5);
-      el("path", { d: colPath(cx - bw / 2, bw, f.Y(w.mi), f.Y(0)), fill: "var(--s1)", opacity: w.partial ? .45 : 1 }, f.svg);
+      el("path", { d: colPath(cx - bw / 2, bw, f.Y(w[U.w] * sc), f.Y(0)), fill: "var(--s1)", opacity: w.partial ? .45 : 1 }, f.svg);
     });
-    [["r84", "--s7"], ["r28", "--s2"]].forEach(function (s) {
-      var pts = D.daily.filter(function (x) { return x[s[0]] != null; }).map(function (x) { return [day(x.d) + .5, x[s[0]]]; });
+    [[U.b, "--s7"], [U.a, "--s2"]].forEach(function (s) {
+      var pts = D.daily.filter(function (x) { return x[s[0]] != null; }).map(function (x) { return [day(x.d) + .5, x[s[0]] * sc]; });
       el("path", { d: linePath(f, pts), fill: "none", stroke: "var(" + s[1] + ")", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
       var last = pts[pts.length - 1];
       if (last) el("circle", { cx: f.X(last[0]), cy: f.Y(last[1]), r: 4, fill: "var(" + s[1] + ")", stroke: "var(--card)", "stroke-width": 2 }, f.svg);
@@ -1468,9 +1600,10 @@ footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
       var hit = el("rect", { "class": "hit", x: xs, y: f.m.t, width: band, height: f.H - f.m.t - f.m.b }, f.svg);
       hov(hit, function (ev) {
         hl.setAttribute("x", xs); hl.removeAttribute("display");
-        showTip("<b>Week of " + fmtDate(w.w) + (w.partial ? " (so far)" : "") + "</b><br>" + sw("--s1") + w.mi + " mi · " + w.runs + " runs" +
-          (end && end.r28 != null ? "<br>" + sw("--s2") + "28-day avg " + end.r28 + " mi/wk" : "") +
-          (end && end.r84 != null ? "<br>" + sw("--s7") + "12-week avg " + end.r84 + " mi/wk" : ""), ev);
+        showTip("<b>Week of " + fmtDate(w.w) + (w.partial ? " (so far)" : "") + "</b><br>" + sw("--s1") + VOL.time.tip(w.min) + " · " + w.mi + " mi · " +
+          VOL.climb.tip(w.ft) + " ft · " + w.runs + " runs" +
+          (end && end[U.a] != null ? "<br>" + sw("--s2") + "28-day avg " + U.tip(end[U.a]) + U.u + "/wk" : "") +
+          (end && end[U.b] != null ? "<br>" + sw("--s7") + "12-week avg " + U.tip(end[U.b]) + U.u + "/wk" : ""), ev);
       }, function () { hl.setAttribute("display", "none"); });
     });
   }
@@ -1687,7 +1820,26 @@ footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
     hover(f, g, "<b>" + fmtDate(G.race) + "</b> · " + G.name + "<br>Goal " + G.t + " · VDOT " + G.v.toFixed(1) + " (sea level)", 6);
   }
   function vis(id) { var e = document.getElementById(id); return e && e.offsetParent !== null; }
-  function renderStatic() { if (vis("cGoal")) goalChart(); }
+  function benchChart() {
+    var B = D.bench.filter(function (p) { return p.adj; }); if (!B.length) return;
+    var names = []; B.forEach(function (p) { if (names.indexOf(p.n) < 0) names.push(p.n); }); names.sort().reverse();
+    var ds = B.map(function (p) { return day(p.d); }), a = Math.min.apply(null, ds) - 7, b = Math.max(Math.max.apply(null, ds), day(D.today)) + 7;
+    var vs = B.map(function (p) { return p.adj; }), lo = Math.floor(Math.min.apply(null, vs) / 30) * 30 - 30, hi = Math.ceil(Math.max.apply(null, vs) / 30) * 30 + 30;
+    var step = hi - lo > 360 ? 120 : 60, ticks = []; for (var v = Math.ceil(lo / step) * step; v <= hi; v += step) ticks.push(v);
+    var f = frame("cBench", a, b, lo, hi, ticks, mmss, true);
+    monthTicks(f, a, b);
+    names.forEach(function (n, k) {
+      var col = k ? "--s2" : "--s1", P = B.filter(function (p) { return p.n === n; });
+      if (P.length > 1) el("path", { d: linePath(f, P.map(function (p) { return [day(p.d) + .5, p.adj]; })), fill: "none", stroke: "var(" + col + ")",
+                                     "stroke-width": 1.5, opacity: .6 }, f.svg);
+      P.forEach(function (p) {
+        var c = dot(f, f.X(day(p.d) + .5), f.Y(p.adj), 5, true, col);
+        hover(f, c, "<b>" + fmtDate(p.d) + "</b> · " + p.n + "<br>" + mmss(p.t) + " (" + mmss(p.t / p.mi) + "/mi) at " + p.hr + " bpm<br>" +
+          sw(col) + mmss(p.adj) + " at " + D.aet + " bpm", 5);
+      });
+    });
+  }
+  function renderStatic() { if (vis("cGoal")) goalChart(); if (vis("cBench")) benchChart(); }
   function render() {
     hideTip(); setWindow();
     [["cMiles", miles], ["cLoad", load], ["cAcwr", acwr], ["cEff", eff], ["cZones", zones]].forEach(function (c) { if (vis(c[0])) c[1](); });

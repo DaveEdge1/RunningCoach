@@ -103,7 +103,7 @@
     }
   },
   "goals": {
-    "gates": [
+    "milestones": [
       {
         "name": "Sub-20 5K",
         "any": [
@@ -127,9 +127,42 @@
         ]
       }
     ],
+    "annual_minutes": {
+      "2027": 20000
+    },
     "annual_miles": {
       "2027": 2000
-    },
-    "unlocks": "First marathon"
+    }
+  },
+  "benchmarks": {
+    "radius_m": 30,
+    "distance_tolerance_pct": 10,
+    "hr_skip_s": 60,
+    "segments": [
+      {
+        "name": "Schultz up",
+        "from": [
+          35.25255,
+          -111.66521
+        ],
+        "to": [
+          35.26705,
+          -111.65933
+        ],
+        "miles": 1.16
+      },
+      {
+        "name": "Schultz down",
+        "from": [
+          35.26705,
+          -111.65933
+        ],
+        "to": [
+          35.25255,
+          -111.66521
+        ],
+        "miles": 1.16
+      }
+    ]
   }
 }

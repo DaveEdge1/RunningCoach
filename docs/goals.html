@@ -58,7 +58,7 @@ header .sub { color: var(--muted); margin: 2px 0 0; font-size: 13px; }
 .note b { color: var(--ink); }
 .dim { color: var(--muted); font-size: 12px; font-weight: 400; }
 .path { list-style: none; margin: 10px 0 0; padding: 0; }
-.path li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid var(--line);
+.path li { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid var(--line);
   font-size: 14px; font-variant-numeric: tabular-nums; }
 .path li:first-child { border-top: none; }
 .path .step { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
@@ -103,40 +103,42 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 <div class="topbar"><nav class="tabs"><a href="index.html">Calendar</a><a href="fitness.html">Fitness</a><a href="calculator.html">Calculator</a><a href="goals.html" aria-current="page">Goals</a></nav><div class="racebar"><b>Phoenix 5K</b><span class="rdate"> · Sat Dec 26 · goal 20:30</span><span class="sep"> · </span><span class="cd" data-race="2026-12-26"></span></div><script>(function () { var c = document.querySelector(".racebar .cd"), n = new Date(), t = new Date(n.getFullYear(), n.getMonth(), n.getDate()), r = new Date(c.dataset.race + "T00:00:00"), d = Math.round((r - t) / 864e5); c.textContent = d > 1 ? d + " days" : d === 1 ? "tomorrow" : d === 0 ? "race day" : "done"; })();</script></div>
 <header>
   <h1>Goals</h1>
-  <p class="sub">Fitness gates on the way to a first marathon · updated Nov 5, 2026 12:30 MST</p>
+  <p class="sub">Time on feet for the year, and speed milestones along the way · updated Nov 5, 2026 12:36 MST</p>
 </header>
 
+<section class="card" id="y0"></section>
+
 <section class="card">
-<h2>The path</h2>
-<p class="note">Any race or time trial, anywhere, can pass a gate by beating the gate time there (next card). Your latest race, the 5K time trial on Nov 3, scores a sea-level VDOT of <b>46.5</b>.</p>
-<ol class="path"><li><div class="step">Gate 1</div><div><b>Under 20:00 5K</b> <span class="dim">· on the clock, at sea level</span><div class="st"><span class="gbar"><i style="width:67%"></i></span> your latest race predicts 21:12 5K at sea level</div></div></li><li><div class="step">Gate 2</div><div><b>Under 1:30 Half marathon or 40:00 10K</b> <span class="dim">· on the clock, at sea level</span><div class="st"><span class="gbar"><i style="width:55%"></i></span> your latest race predicts 1:37:24 Half marathon · 43:57 10K at sea level</div></div></li><li><div class="step">Gate 3</div><div><b>2,000 miles in 2027</b> <span class="dim">· 38.4 mi/wk on average</span><div class="st">Starts Jan 1, 2027 · 57 days</div></div></li><li class="end"><div class="step">Then</div><div><b>First marathon</b><div class="st">Opens when the last two gates are both done.</div></div></li></ol>
+<h2>Speed milestones</h2>
+<p class="note">Good to reach, not requirements. Any race or time trial, anywhere, reaches one by beating its time there (next card). Your latest race, the 5K time trial on Nov 3, scores a sea-level VDOT of <b>46.5</b>.</p>
+<ol class="path"><li><div class="step">Sub-20 5K</div><div><b>Under 20:00 5K</b> <span class="dim">· on the clock, at sea level</span><div class="st"><span class="gbar"><i style="width:67%"></i></span> your latest race predicts 21:12 5K at sea level</div></div></li><li><div class="step">1:30 half or 40:00 10K</div><div><b>Under 1:30 Half marathon or 40:00 10K</b> <span class="dim">· on the clock, at sea level</span><div class="st"><span class="gbar"><i style="width:55%"></i></span> your latest race predicts 1:37:24 Half marathon · 43:57 10K at sea level</div></div></li></ol>
 </section>
 
 <section class="card">
-<h2>What the gates mean where you race</h2>
-<p class="note">The clock time that passes each gate at each place, on purpose conservative: the gate gets the smallest of the published altitude adjustments, and hills earn no credit, so these are the times to beat on any course there.</p>
+<h2>What the milestones mean where you race</h2>
+<p class="note">The clock time that reaches each milestone at each place, on purpose conservative: it gets the smallest of the published altitude adjustments, and hills earn no credit, so these are the times to beat on any course there.</p>
 <div class="scroll"><table class="t"><tr><th>Where</th><th>20:00 5K</th><th>1:30 Half marathon</th><th>40:00 10K</th></tr><tr><td>Sea level <span class=dim>0 ft</span></td><td>19:59</td><td>1:29:59</td><td>39:59</td></tr><tr><td>Phoenix, AZ <span class=dim>1,100 ft</span></td><td>19:59</td><td>1:29:59</td><td>39:59</td></tr><tr><td>Sedona, AZ <span class=dim>4,450 ft</span></td><td>20:17</td><td>1:31:15</td><td>40:35</td></tr><tr><td>Flagstaff <span class=dim>7,000 ft</span></td><td>20:49</td><td>1:33:29</td><td>41:38</td></tr></table></div>
 </section>
 
 <section class="card">
 <h2>Races on the same scale</h2>
-<p class="note">Goals and results as sea-level VDOT (as on the Fitness tab) and the 5K at sea level that VDOT predicts. "Now" is what your latest race predicts there (both altitude methods, and the course's hills where its profile is known). "Passes" uses the gate times above.</p>
-<h3>Coming up</h3><div class=scroll><table class=t><tr><th>Race</th><th>Date</th><th>Goal</th><th>Sea-level VDOT</th><th>= 5K at sea level</th><th>Now</th></tr><tr><td><b>Phoenix 5K</b> <span class=dim>1,100 ft</span></td><td>Dec 26, 2026</td><td>20:30</td><td>48.5</td><td>20:27</td><td>21:12–21:18</td></tr><tr><td><b>RunSedona 5K</b> <span class=dim>4,450 ft, ~295 ft of climbing</span></td><td>Feb 6, 2027</td><td>20:59</td><td>48.2</td><td>20:35</td><td>22:05–22:16</td></tr></table></div><h3>Results</h3><div class=scroll><table class=t><tr><th>Race</th><th>Date</th><th>Time</th><th>Sea-level VDOT</th><th>= 5K at sea level</th><th>Passes</th></tr><tr><td><b>5K time trial</b> <span class=dim>7,143 ft</span></td><td>Nov 3, 2026</td><td>22:12</td><td>46.5</td><td>21:12</td><td>–</td></tr><tr><td><b>10K</b> <span class=dim>7,373 ft</span></td><td>Oct 10, 2026</td><td>47:55</td><td>44.6</td><td>21:57</td><td>–</td></tr></table></div>
+<p class="note">Goals and results as sea-level VDOT (as on the Fitness tab) and the 5K at sea level that VDOT predicts. "Now" is what your latest race predicts there (both altitude methods, and the course's hills where its profile is known). "Reaches" uses the milestone times above.</p>
+<h3>Coming up</h3><div class=scroll><table class=t><tr><th>Race</th><th>Date</th><th>Goal</th><th>Sea-level VDOT</th><th>= 5K at sea level</th><th>Now</th></tr><tr><td><b>Phoenix 5K</b> <span class=dim>1,100 ft</span></td><td>Dec 26, 2026</td><td>20:30</td><td>48.5</td><td>20:27</td><td>21:12–21:18</td></tr><tr><td><b>RunSedona 5K</b> <span class=dim>4,450 ft, ~295 ft of climbing</span></td><td>Feb 6, 2027</td><td>20:59</td><td>48.2</td><td>20:35</td><td>22:05–22:16</td></tr></table></div><h3>Results</h3><div class=scroll><table class=t><tr><th>Race</th><th>Date</th><th>Time</th><th>Sea-level VDOT</th><th>= 5K at sea level</th><th>Reaches</th></tr><tr><td><b>5K time trial</b> <span class=dim>7,143 ft</span></td><td>Nov 3, 2026</td><td>22:12</td><td>46.5</td><td>21:12</td><td>–</td></tr><tr><td><b>10K</b> <span class=dim>7,373 ft</span></td><td>Oct 10, 2026</td><td>47:55</td><td>44.6</td><td>21:57</td><td>–</td></tr></table></div>
 </section>
 
-<section class="card" id="mi"></section>
+<section class="card" id="y1"></section>
 
 <section class="card about">
 <h2>About</h2>
-<p>Each gate is a finish time on a flat course at sea level. Gates are judged conservatively: a race passes when its clock time beats the gate time at its altitude, converted by whichever published method gives the least adjustment (Daniels' 4 or 5 s/mi per 1,000 ft above 3,000 ft, or the NCAA 2009 tables), and hills earn nothing. So a gate passed at altitude or on hills is one you'd certainly have passed on a flat course at sea level. Predictions and VDOTs on this page are the Fitness tab's (clock time, the methods averaged). The bars fill as that VDOT approaches the one the gate time works out to, from 10 points below.</p>
-<p>The mileage goal is tracked against an even pace through the year (goal × days so far ÷ days in the year). "Needed" is the weekly average the rest of the year takes; the projection adds the planned miles in plan.csv, then the last 28 days' average, to what's done. Mileage counts runs only (hand-made FIT files too), never hikes or skis.</p>
+<p>The yearly goals are tracked against an even pace through the year (goal × days so far ÷ days in the year). "Needed" is the weekly average the rest of the year takes; the projection adds the planned miles in plan.csv (as time, at the last 28 days' average pace), then the last 28 days' average, to what's done. Both count runs only (hand-made FIT files too), never hikes or skis. Time is moving time, distance × average pace. Time is the headline because a trail mile takes longer than a road mile, so a mileage goal quietly pulls toward roads.</p>
+<p>Each milestone is a finish time on a flat course at sea level, judged conservatively: a race reaches it when its clock time beats the milestone time at its altitude, converted by whichever published method gives the least adjustment (Daniels' 4 or 5 s/mi per 1,000 ft above 3,000 ft, or the NCAA 2009 tables), and hills earn nothing. Predictions and VDOTs on this page are the Fitness tab's (clock time, the methods averaged). The bars fill as that VDOT approaches the one the milestone time works out to, from 10 points below.</p>
 </section>
-<footer>Updated Nov 5, 2026 12:30 MST.</footer>
+<footer>Updated Nov 5, 2026 12:36 MST.</footer>
 </main>
 <div id="tip"></div>
 <script>
 (function () {
-  var D = {"miles":{"year":2027,"goal":2000,"jan1":"2027-01-01","dec31":"2027-12-31","days":[],"total":0.0,"plan":[],"planEnd":null,"r28":34.4,"months":[{"m":"Jan","mi":0.0,"target":169.9,"started":false},{"m":"Feb","mi":0.0,"target":153.4,"started":false},{"m":"Mar","mi":0.0,"target":169.9,"started":false},{"m":"Apr","mi":0.0,"target":164.4,"started":false},{"m":"May","mi":0.0,"target":169.9,"started":false},{"m":"Jun","mi":0.0,"target":164.4,"started":false},{"m":"Jul","mi":0.0,"target":169.9,"started":false},{"m":"Aug","mi":0.0,"target":169.9,"started":false},{"m":"Sep","mi":0.0,"target":164.4,"started":false},{"m":"Oct","mi":0.0,"target":169.9,"started":false},{"m":"Nov","mi":0.0,"target":164.4,"started":false},{"m":"Dec","mi":0.0,"target":169.9,"started":false}],"today":"2026-11-05"}};
+  var D = {"yearly":[{"unit":"min","year":2027,"goal":20000,"jan1":"2027-01-01","dec31":"2027-12-31","days":[],"total":0.0,"plan":[],"planEnd":null,"r28":340,"months":[{"m":"Jan","mi":0.0,"target":1698.6,"started":false},{"m":"Feb","mi":0.0,"target":1534.2,"started":false},{"m":"Mar","mi":0.0,"target":1698.6,"started":false},{"m":"Apr","mi":0.0,"target":1643.8,"started":false},{"m":"May","mi":0.0,"target":1698.6,"started":false},{"m":"Jun","mi":0.0,"target":1643.8,"started":false},{"m":"Jul","mi":0.0,"target":1698.6,"started":false},{"m":"Aug","mi":0.0,"target":1698.6,"started":false},{"m":"Sep","mi":0.0,"target":1643.8,"started":false},{"m":"Oct","mi":0.0,"target":1698.6,"started":false},{"m":"Nov","mi":0.0,"target":1643.8,"started":false},{"m":"Dec","mi":0.0,"target":1698.6,"started":false}],"today":"2026-11-05"},{"unit":"mi","year":2027,"goal":2000,"jan1":"2027-01-01","dec31":"2027-12-31","days":[],"total":0.0,"plan":[],"planEnd":null,"r28":34.4,"months":[{"m":"Jan","mi":0.0,"target":169.9,"started":false},{"m":"Feb","mi":0.0,"target":153.4,"started":false},{"m":"Mar","mi":0.0,"target":169.9,"started":false},{"m":"Apr","mi":0.0,"target":164.4,"started":false},{"m":"May","mi":0.0,"target":169.9,"started":false},{"m":"Jun","mi":0.0,"target":164.4,"started":false},{"m":"Jul","mi":0.0,"target":169.9,"started":false},{"m":"Aug","mi":0.0,"target":169.9,"started":false},{"m":"Sep","mi":0.0,"target":164.4,"started":false},{"m":"Oct","mi":0.0,"target":169.9,"started":false},{"m":"Nov","mi":0.0,"target":164.4,"started":false},{"m":"Dec","mi":0.0,"target":169.9,"started":false}],"today":"2026-11-05"}]};
   var NS = "http://www.w3.org/2000/svg", tip = document.getElementById("tip");
   var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   function el(tag, a, parent) { var e = document.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); if (parent) parent.appendChild(e); return e; }
@@ -153,9 +155,15 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
   }
   function sw(v) { return '<i style="background:var(' + v + ')"></i>'; }
 
-  // ---- mileage goal ----
-  var M = D.miles, box = document.getElementById("mi");
-  if (!M) { box.hidden = true; return; }
+  // ---- yearly goals: running time (first), then miles ----
+  function hmm(m) { m = Math.round(m); return Math.floor(m / 60) + "h " + String(m % 60).padStart(2, "0") + "m"; }
+  D.yearly.forEach(function (M, k) { yearGoal(M, document.getElementById("y" + k)); });
+  ["y0", "y1"].slice(D.yearly.length).forEach(function (id) { document.getElementById(id).hidden = true; });
+
+  function yearGoal(M, box) {
+  var isMin = M.unit === "min", U = isMin ? " min" : " mi", UN = isMin ? "minutes" : "miles";
+  var wk = function (v) { return isMin ? n0(v) : v.toFixed(1); };
+  var wkSub = function (v) { return isMin ? " (" + hmm(v) + ")" : ""; };
   var x0 = day(M.jan1), x1 = day(M.dec31), nDays = x1 - x0 + 1, td = day(M.today);
   var started = td >= x0, elapsed = Math.max(0, Math.min(nDays, td - x0 + 1)), left = nDays - elapsed;
   var target = M.goal * elapsed / nDays, diff = M.total - target;
@@ -165,38 +173,42 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
   var proj = M.r28 == null ? null : planTot + M.r28 / 7 * Math.max(0, x1 - Math.max(planEnd, x0 - 1));
   function tile(l, v, s) { return '<div class="tile"><div class="tl">' + l + '</div><div class="tv">' + v + '</div><div class="ts">' + s + "</div></div>"; }
   var tiles = started
-    ? tile(M.year + " so far", n0(M.total) + " mi", n0(M.total / M.goal * 100) + "% of " + n0(M.goal)) +
-      tile("vs. even pace", '<span class="' + (diff >= 0 ? "up" : "down") + '">' + (diff >= 0 ? "+" : "−") + n0(Math.abs(diff)) + " mi</span>",
+    ? tile(M.year + " so far", n0(M.total) + U, n0(M.total / M.goal * 100) + "% of " + n0(M.goal)) +
+      tile("vs. even pace", '<span class="' + (diff >= 0 ? "up" : "down") + '">' + (diff >= 0 ? "+" : "−") + n0(Math.abs(diff)) + U + "</span>",
            (diff >= 0 ? "ahead of " : "behind ") + n0(target) + " by today") +
-      tile("Needed", need.toFixed(1) + " mi/wk", "average for the " + Math.round(left / 7) + " weeks left")
+      tile("Needed", wk(need) + U + "/wk", "average for the " + Math.round(left / 7) + " weeks left" + wkSub(need))
     : tile("Starts", fmtLong(M.jan1), Math.round(x0 - td) + " days away") +
-      tile("Needed", (M.goal / (nDays / 7)).toFixed(1) + " mi/wk", "average, every week of " + M.year);
+      tile("Needed", wk(M.goal / (nDays / 7)) + U + "/wk", "average, every week of " + M.year + wkSub(M.goal / (nDays / 7)));
   var pace = started ? need : M.goal / (nDays / 7);
-  if (M.r28 != null) tiles += tile("Last 28 days", M.r28.toFixed(1) + " mi/wk", (M.r28 >= pace ? "at or above" : "below") + " the needed pace");
-  if (proj != null) tiles += tile("Projected", n0(proj) + " mi", (M.plan.length ? "plan, then " : "") + "28-day average to Dec 31");
-  box.innerHTML = "<h2>" + n0(M.goal) + " miles in " + M.year + "</h2>" +
-    '<p class="note">' + n0(M.goal) + " miles is " + (M.goal / (nDays / 7)).toFixed(1) + " mi a week on average, cut-back weeks, tapers, trips and time off included.</p>" +
+  if (M.r28 != null) tiles += tile("Last 28 days", wk(M.r28) + U + "/wk", (M.r28 >= pace ? "at or above" : "below") + " the needed pace" + wkSub(M.r28));
+  if (proj != null) tiles += tile("Projected", n0(proj) + U, (M.plan.length ? "plan, then " : "") + "28-day average to Dec 31");
+  var per = M.goal / (nDays / 7);
+  box.innerHTML = "<h2>" + n0(M.goal) + " " + UN + " of running in " + M.year + "</h2>" +
+    '<p class="note">' + (isMin
+      ? n0(M.goal) + " minutes is " + n0(per) + " min (" + hmm(per) + ") a week on average, cut-back weeks, tapers, trips and time off included. Time counts a slow trail mile for what it takes."
+      : n0(M.goal) + " miles is " + per.toFixed(1) + " mi a week on average. Kept alongside the time goal; time is the headline.") + "</p>" +
     '<div class="tiles">' + tiles + "</div>" +
-    '<div class="chart" id="cum"></div>' +
-    '<div class="legend note"><span><i class="ln" style="background:var(--s1)"></i>Miles run</span> &nbsp; <span><i class="ln dash"></i>Even pace to ' + n0(M.goal) +
+    '<div class="chart" id="cum' + M.unit + '"></div>' +
+    '<div class="legend note"><span><i class="ln" style="background:var(--s1)"></i>' + (isMin ? "Minutes" : "Miles") + " run</span> &nbsp; <span><i class='ln dash'></i>Even pace to " + n0(M.goal) +
     "</span>" + (M.plan.length ? ' &nbsp; <span><i class="ln" style="background:var(--s7)"></i>Plan</span>' : "") +
     (proj != null ? ' &nbsp; <span><i class="ln dot"></i>28-day average</span>' : "") + "</div>" +
-    '<div class="scroll"><table class="t" id="months"></table></div>';
+    '<div class="scroll"><table class="t" id="months' + M.unit + '"></table></div>';
 
-  var mt = "<tr><th>Month</th><th>Miles</th><th>Even pace</th><th>vs. pace</th><th>Running total</th></tr>", run = 0, tgt = 0;
+  var mt = "<tr><th>Month</th><th>" + (isMin ? "Minutes" : "Miles") + "</th><th>Even pace</th><th>vs. pace</th><th>Running total</th></tr>", run = 0, tgt = 0;
   M.months.forEach(function (m) {
     run += m.mi; tgt += m.target;
     var dv = m.mi - m.target;
-    mt += "<tr><td>" + m.m + "</td><td>" + (m.started ? m.mi.toFixed(1) : "–") + "</td><td>" + m.target.toFixed(0) + "</td><td>" +
-          (m.started ? '<span class="' + (dv >= 0 ? "up" : "down") + '">' + (dv >= 0 ? "+" : "−") + Math.abs(dv).toFixed(0) + "</span>" : "–") +
+    mt += "<tr><td>" + m.m + "</td><td>" + (m.started ? (isMin ? n0(m.mi) : m.mi.toFixed(1)) : "–") + "</td><td>" + n0(m.target) + "</td><td>" +
+          (m.started ? '<span class="' + (dv >= 0 ? "up" : "down") + '">' + (dv >= 0 ? "+" : "−") + n0(Math.abs(dv)) + "</span>" : "–") +
           "</td><td>" + (m.started ? n0(run) + " / " + n0(tgt) : "–") + "</td></tr>";
   });
-  document.getElementById("months").innerHTML = mt;
+  document.getElementById("months" + M.unit).innerHTML = mt;
 
   function draw() {
-    var c = document.getElementById("cum"); c.innerHTML = "";
-    var W = c.clientWidth, H = c.clientHeight, m = { l: 46, r: 14, t: 10, b: 22 };
-    var ymax = Math.max(M.goal, proj || 0, planTot) * 1.06, step = ymax > 1500 ? 500 : 250;
+    var c = document.getElementById("cum" + M.unit); c.innerHTML = "";
+    var W = c.clientWidth, H = c.clientHeight, m = { l: 52, r: 14, t: 10, b: 22 };
+    var ymax = Math.max(M.goal, proj || 0, planTot) * 1.06, step = Math.pow(10, Math.floor(Math.log10(ymax)));
+    step = ymax / step > 5 ? step : ymax / step > 2.5 ? step / 2 : step / 4;
     var X = function (d) { return m.l + (d - x0) / (x1 + 1 - x0) * (W - m.l - m.r); };
     var Y = function (v) { return H - m.b - v / ymax * (H - m.t - m.b); };
     var svg = el("svg", { viewBox: "0 0 " + W + " " + H }, c), g = el("g", { "class": "grid" }, svg), ax = el("g", { "class": "axis" }, svg);
@@ -230,15 +242,16 @@ footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
       var d = Math.max(x0, Math.min(x1, Math.floor(x0 + (px - m.l) / (W - m.l - m.r) * (x1 + 1 - x0))));
       gd.setAttribute("x1", X(d + 1)); gd.setAttribute("x2", X(d + 1)); gd.removeAttribute("display");
       var iso = new Date(d * 864e5).toISOString().slice(0, 10), tg = M.goal * (d - x0 + 1) / nDays, s = "<b>" + fmtLong(iso) + "</b>";
-      if (byDay[d] != null) s += "<br>" + sw("--s1") + n0(byDay[d]) + " mi run (" + (byDay[d] >= tg ? "+" : "−") + n0(Math.abs(byDay[d] - tg)) + ")";
-      else { var pk = Object.keys(planBy).filter(function (k) { return +k <= d; }); if (pk.length) s += "<br>" + sw("--s7") + n0(planBy[Math.max.apply(null, pk)]) + " mi planned"; }
-      s += "<br>" + sw("--muted") + n0(tg) + " mi even pace";
+      if (byDay[d] != null) s += "<br>" + sw("--s1") + n0(byDay[d]) + U + " run (" + (byDay[d] >= tg ? "+" : "−") + n0(Math.abs(byDay[d] - tg)) + ")";
+      else { var pk = Object.keys(planBy).filter(function (k) { return +k <= d; }); if (pk.length) s += "<br>" + sw("--s7") + n0(planBy[Math.max.apply(null, pk)]) + U + " planned"; }
+      s += "<br>" + sw("--muted") + n0(tg) + U + " even pace";
       showTip(s, ev);
     });
     hit.addEventListener("pointerleave", function () { gd.setAttribute("display", "none"); tip.style.display = "none"; });
   }
   draw();
   window.addEventListener("resize", draw);
+  }
 })();
 </script>
 </body>

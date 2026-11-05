@@ -9,16 +9,18 @@ Usage: python scripts/analyze.py   (run scripts/sync.py first)
 Writes data/laps.csv, data/runs.csv, data/hr_hist.csv (seconds at each bpm), data/trace.csv
 (HR, grade-adjusted pace, and pace in 5 s bins; no location), data/efforts.csv (fastest grade-adjusted time
 over each standard distance within each run), data/segments.csv (steady laps: grade-adjusted speed and HR, for the
-HR-based fitness estimate), and data/cross.csv (hikes and XC skis: HR-zone load, not mileage),
+HR-based fitness estimate), data/cross.csv (hikes and XC skis: HR-zone load, not mileage), and
+data/benchmarks.csv (each pass through a trail benchmark in config.json: time, HR, climbing; no location),
 prints rolling mileage.
 """
-import bisect, csv, statistics, warnings
+import bisect, csv, math, statistics, warnings
 from datetime import date, timedelta
 
 import fitdecode
 
 import elevation
-from config import (AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CROSS_DEFAULT_RATE, CROSS_FIT_SPORTS, DECOUPLE_MIN_S,
+from config import (BENCH_HR_SKIP_S, BENCH_RADIUS_M, BENCH_TOL, BENCHMARKS,
+                    AET, AET_MAX_GRADE, AET_MAX_S, AET_WARMUP_S, CROSS_DEFAULT_RATE, CROSS_FIT_SPORTS, DECOUPLE_MIN_S,
                     EFFORT_DISTANCES, HARD_BOUT, HR_CEIL_PCT, HRFIT_MAX_CV, HRFIT_MIN_S, HRFIT_SETTLE_S, MANUAL_LOAD_PER_MIN, ROOT,
                     TZ, ZONES, hard_bout_secs, trail_laps)
 
@@ -329,6 +331,56 @@ def trace(recs, ga, prof=None):
     return out
 
 
+def metres(a, b):
+    """Distance in m between two (lat, lon) points in degrees (equirectangular; fine over a few km)."""
+    dy = (a[0] - b[0]) * 111195
+    dx = (a[1] - b[1]) * 111195 * math.cos(math.radians((a[0] + b[0]) / 2))
+    return math.hypot(dx, dy)
+
+
+def closest_passes(pos, pt):
+    """Record indexes where the track comes closest to `pt` on each pass within BENCH_RADIUS_M of it."""
+    out, cur = [], None
+    for i, p in enumerate(pos):
+        d = metres(p, pt) if p else None
+        if d is not None and d < BENCH_RADIUS_M:
+            if cur is None or d < cur[1]:
+                cur = (i, d)
+        elif cur is not None and (d is None or d > 2 * BENCH_RADIUS_M):  # left the circle: that pass is over
+            out.append(cur[0])
+            cur = None
+    if cur is not None:
+        out.append(cur[0])
+    return out
+
+
+def benchmarks(pos, recs):
+    """Each pass through each trail benchmark (config.json "benchmarks"): from its start point to the next arrival at
+    its end point, with no return to the start in between, and a distance within the tolerance of the benchmark's.
+    Returns (name, secs, meters, avg HR after BENCH_HR_SKIP_S, climb m, net elevation m)."""
+    out = []
+    if not pos or not any(pos):
+        return out
+    for b in BENCHMARKS:
+        starts, ends = closest_passes(pos, b["from"]), closest_passes(pos, b["to"])
+        for i in starts:
+            j = next((e for e in ends if e > i), None)
+            if j is None or any(i < s < j for s in starts):
+                continue
+            d0, d1, t0, t1 = recs[i][2], recs[j][2], recs[i][4], recs[j][4]
+            if None in (d0, d1, t0, t1) or d1 <= d0:
+                continue
+            m = d1 - d0
+            if b.get("miles") and abs(m / M_PER_MI / b["miles"] - 1) > BENCH_TOL:
+                continue
+            hr = [r[0] for r in recs[i:j + 1] if r[0] and r[4] is not None and r[4] - t0 >= BENCH_HR_SKIP_S]
+            alt = [r[3] for r in recs[i:j + 1] if r[3] is not None]
+            climb = sum(max(0.0, b2 - a2) for a2, b2 in zip(alt, alt[1:]))
+            out.append((b["name"], round(t1 - t0), round(m), round(sum(hr) / len(hr)) if hr else "",
+                        round(climb), round(alt[-1] - alt[0]) if alt else ""))
+    return out
+
+
 def parse_fit(path):
     session, laps, recs = {}, [], []
     with fitdecode.FitReader(path) as fr:
@@ -370,6 +422,7 @@ def load_runs():
 
 def main():
     lap_rows, run_rows, hist_rows, trace_rows, effort_rows, seg_rows, cross_rows, daily = [], [], [], [], [], [], [], {}
+    bench_rows = []
     zone_secs = [0] * len(ZONES)
     manual = {l.split("#")[0].strip() for l in MANUAL_LIST.read_text().splitlines()} - {""}
     for fid, s, laps, recs in load_runs():
@@ -404,6 +457,9 @@ def main():
         trail = trail_laps().get(d.isoformat(), set())
         for lap, secs, v, h in hr_segments(laps, recs, ga, trail):
             seg_rows.append([d, local.strftime("%H:%M"), lap, secs, v, h])
+        for name, secs, m, ahr, climb, net in benchmarks(s.get("pos", []), recs):
+            bench_rows.append([d, local.strftime("%H:%M"), name, secs, f"{m / M_PER_MI:.2f}", ahr,
+                               round(climb * FT_PER_M), net if net == "" else round(net * FT_PER_M)])
         raw, adj = gap_ratio(recs, ga)
         counts = {}
         for h in hr:
@@ -438,6 +494,7 @@ def main():
     trace_rows[:] = [r for r in trace_rows if (str(r[0]), r[1]) not in stale]
     effort_rows[:] = [r for r in effort_rows if (str(r[0]), r[1]) not in stale]
     seg_rows[:] = [r for r in seg_rows if (str(r[0]), r[1]) not in stale]
+    bench_rows[:] = [r for r in bench_rows if (str(r[0]), r[1]) not in stale]
     old_cross = []
     if (ROOT / "data" / "cross.csv").exists():
         with open(ROOT / "data" / "cross.csv", newline="") as f:
@@ -452,7 +509,8 @@ def main():
         w.writerows(cross_rows)
     have = {(str(r[0]), r[1]) for r in run_rows}
     for name, rows in (("runs.csv", run_rows), ("laps.csv", lap_rows), ("hr_hist.csv", hist_rows),
-                       ("trace.csv", trace_rows), ("efforts.csv", effort_rows), ("segments.csv", seg_rows)):
+                       ("trace.csv", trace_rows), ("efforts.csv", effort_rows), ("segments.csv", seg_rows),
+                       ("benchmarks.csv", bench_rows)):
         path = ROOT / "data" / name
         if path.exists():
             with open(path, newline="") as f:
@@ -480,6 +538,11 @@ def main():
         w = csv.writer(f)
         w.writerow(["date", "start", "lap", "secs", "gap_mps", "avg_hr"])
         w.writerows(seg_rows)
+    bench_rows.sort(key=lambda r: (str(r[0]), r[1], r[2]))
+    with open(ROOT / "data" / "benchmarks.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["date", "start", "name", "secs", "miles", "avg_hr", "climb_ft", "net_elev_ft"])
+        w.writerows(bench_rows)
     elevation.save()
     with open(ROOT / "data" / "trace.csv", "w", newline="") as f:
         w = csv.writer(f)

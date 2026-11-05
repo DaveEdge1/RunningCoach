@@ -67,6 +67,13 @@ HRFIT_HR_MAX = AET + _cfg["hr_fitness"]["aet_margin_bpm"]
 HRFIT_MAX_CV = _cfg["hr_fitness"]["max_speed_cv_pct"] / 100
 HRFIT_DAYS = _cfg["hr_fitness"]["rolling_days"]
 
+# Trail benchmarks: fixed GPS sections timed whenever a run passes through them
+_bm = _cfg.get("benchmarks", {})
+BENCH_RADIUS_M = _bm.get("radius_m", 30)
+BENCH_TOL = _bm.get("distance_tolerance_pct", 10) / 100
+BENCH_HR_SKIP_S = _bm.get("hr_skip_s", 60)
+BENCHMARKS = _bm.get("segments", [])
+
 # Workout reps
 REP_PACE_TOL = _cfg["workouts"]["pace_tolerance_s_per_mi"]
 REP_MIN_S = _cfg["workouts"]["rep_min_secs"]

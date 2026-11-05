@@ -12,11 +12,12 @@ _The scripts read thresholds from `config.json`. Update both when they change._
 - **2026-12-26 — 5K in Phoenix** (~1,100 ft, close to sea level). Goal: 20:30 (6:36/mi), raised from 21:00 on 2026-11-03 after a 22:12 time trial at 7,140 ft; it lives in races.csv (goal_time).
   Switched from the 10K (goal was 44:00, set 2026-10-12) on 2026-10-15: the course is a 0.78 mi out-and-back, so the 10K meant 4 laps and 7 turnarounds.
 - **2027-02-06 — RunSedona 5K** (~4,450 ft, rolling: ~290 ft of climbing). Goal: under 21:00 (set 2026-10-30), worth about a 20:00 at sea level (VDOT ~49.7).
-- **The path to a first marathon** (set 2026-10-30; the Goals tab tracks it). He races where he likes to run and uses the equivalent sea-level fitness, but only with the most conservative handicaps: the least generous altitude method and no hill credit (e.g., Gate 1 = 20:49 at Flagstaff, 20:17 at Sedona on any course). Flat low courses (Phoenix etc.) only when he's already there. He dislikes big cities.
+- **Trails first** (2026-11-05): he prefers running trails whenever he can. The data had pushed him toward time-based goals; he still wants to get faster, but speed carries less weight now. Trails are the default; speed work is about one protected session a week plus hill sprints.
+- **20,000 minutes of running in 2027** (key goal, set 2026-11-05; ~384 min, 6h 24m, a week including cut-backs and time off). Time replaced miles as the headline because a trail mile takes longer. The 2,000-mile goal (~38.4 mi/wk) is still tracked alongside. It needs consistency, not higher peaks. Don't chase a deficit late in the year (injury pattern below).
+- **First 50K: Crown King Scramble, March 2028** (Aravaipa; ~31 mi, ~6,800 ft up, ~2,600 ft down, 1,700 → ~5,900 ft). Chosen for its little downhill, which worries him more than climbing for injuries. Checkpoint: Soulstice 30K, ~Oct 9 2027 (Government Prairie, ~7,400 ft; date unconfirmed). Climbing in training, including uphill-only runs with a bike left at the top (e.g., to Snowbowl, 15 mi, +2,300 ft). No other 50K before it.
+- **Speed milestones** (set 2026-10-30 as gates to a first marathon; since 2026-11-05 good to reach, not requirements; the Goals tab tracks them). He races where he likes to run and uses the equivalent sea-level fitness, but only with the most conservative handicaps: the least generous altitude method and no hill credit (e.g., sub-20 5K = 20:49 at Flagstaff, 20:17 at Sedona on any course). Flat low courses (Phoenix etc.) only when he's already there. He dislikes big cities.
   1. Sub-20 5K equivalent (sea-level VDOT ~49.9).
-  2. Then a 1:30 half or a 40:00 10K equivalent, whichever is convenient or looks fun (VDOT ~51.0 / ~51.9).
-  3. 2,000 miles in 2027 (key goal): ~38.4 mi/wk average including cut-backs and time off. Holding ~45 mi/wk with cut-back weeks gives ~2,150, so it needs consistency, not higher peaks. Don't chase a deficit late in the year (injury pattern below).
-  4. Gates 2 and 3 together unlock his first marathon (so 2028 at the earliest if the miles are the last to fall).
+  2. A 1:30 half or a 40:00 10K equivalent, whichever is convenient or looks fun (VDOT ~51.0 / ~51.9).
 
 ## PRs / recent races
 - 2026-10-10: 10K in 47:55 by watch (GPS 9.99 km). Flat dirt road with some rocky sections, ~7,400 ft.
