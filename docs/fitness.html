@@ -169,7 +169,7 @@ footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
 <div class="topbar"><nav class="tabs"><a href="index.html">Calendar</a><a href="fitness.html" aria-current="page">Fitness</a><a href="calculator.html">Calculator</a><a href="goals.html">Goals</a></nav><div class="racebar"><b>Phoenix 5K</b><span class="rdate"> · Sat Dec 26 · goal 20:30</span><span class="sep"> · </span><span class="cd" data-race="2026-12-26"></span></div><script>(function () { var c = document.querySelector(".racebar .cd"), n = new Date(), t = new Date(n.getFullYear(), n.getMonth(), n.getDate()), r = new Date(c.dataset.race + "T00:00:00"), d = Math.round((r - t) / 864e5); c.textContent = d > 1 ? d + " days" : d === 1 ? "tomorrow" : d === 0 ? "race day" : "done"; })();</script></div>
 <header>
   <h1>Running Fitness</h1>
-  <p class="sub">Built from completed runs only · updated Nov 12, 2026 10:01 MST</p>
+  <p class="sub">Built from completed runs only · updated Nov 12, 2026 10:15 MST</p>
 </header>
 <div class="stick"><nav class="subtabs" role="tablist" aria-label="Sections">
 <button role="tab" data-sec="today">Today</button><button role="tab" data-sec="training">Training</button><button role="tab" data-sec="fitness">Fitness</button><button role="tab" data-sec="race">Race</button>
@@ -244,7 +244,7 @@ footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
 <details class="how"><summary>How it's calculated</summary><div class="howb"><p><b>VDOT</b> is Jack Daniels' formula applied to your most recent race (races.csv, or a planned race) or time trial (a planned session named "time trial"). Training efforts never replace it: they are run below race effort by design, and a fastest window can include recoveries. The next-race estimate uses that current fitness with no projected gains. Elevation comes from the run's own file.</p><p><b>Altitude</b> is converted two published ways and shown as a range. <a href="https://news.vdoto2.com/2011/03/ask-a-coach-how-do-you-adjust-threshold-pace-at-altitude/">Daniels</a>: paces slow 4–5 s/mi per 1,000 ft above 3,000 ft (15–18 s/mi at 7,000 ft). <a href="https://www.ustfccca.org/assets/ncaa-info/2009-outdoor-alt-adjust.pdf">NCAA 2009 altitude tables</a>: % added by venue altitude (0–7,703 ft) for the mile, 5K and 10K, interpolated by altitude and distance, and held at the nearest of those distances outside that span. Neither accounts for acclimatization.</p></div></details>
 </section>
 </section>
-<footer>Updated Nov 12, 2026 10:01 MST.</footer>
+<footer>Updated Nov 12, 2026 10:15 MST.</footer>
 </main>
 <div id="tip"></div>
 <script>
