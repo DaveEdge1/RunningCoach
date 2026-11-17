@@ -18,3 +18,6 @@ so trail runs stay off the pace-at-AeT chart and out of the HR-based fitness est
 - 2026-11-03: 5K time trial, 22:12 at ~7,140 ft (7:04 grade-adjusted); warm-up only ~1 mi; opened a little quick, steady 7:00–7:15 GAP after; day before skipped (rest)
 - 2026-11-04: trail
 - 2026-11-06: trail
+- 2026-11-14: trail
+- 2026-11-15: trail
+- 2026-11-16: trail
